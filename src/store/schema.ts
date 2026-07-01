@@ -1,0 +1,429 @@
+import type { TablesSchema, ValuesSchema } from 'tinybase'
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Enums / shared unions
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const PILLARS = ['body', 'social', 'money', 'cv', 'personal'] as const
+export type Pillar = (typeof PILLARS)[number]
+
+export const PRIORITIES = ['high', 'med', 'low'] as const
+export type Priority = (typeof PRIORITIES)[number]
+
+export const PROJECT_STATUSES = ['idea', 'active', 'paused', 'done'] as const
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Row types (our strict view of each table; rowId is carried as `id`)
+ * Field names mirror v1 for clean migration (SPEC.md → Data model).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export interface Task {
+  id: string
+  title: string
+  notes?: string
+  priority: Priority
+  due?: string // YYYY-MM-DD
+  category?: string
+  projectId?: string
+  done: boolean
+  createdTs: number
+  doneTs?: number
+}
+
+export interface Project {
+  id: string
+  name: string
+  status: ProjectStatus
+  nextAction?: string
+  link?: string
+  notes?: string
+  category?: string
+  createdTs: number
+  updatedTs: number
+  archived: boolean
+}
+
+export interface Contact {
+  id: string
+  name: string
+  met?: string
+  notes?: string
+  lastContact?: string // YYYY-MM-DD
+  cadenceDays?: number
+  birthday?: string // YYYY-MM-DD
+  ts: number
+}
+
+export interface Idea {
+  id: string
+  title: string
+  notes?: string
+  ts: number
+}
+
+export interface PortfolioEntry {
+  id: string
+  date: string // YYYY-MM-DD
+  value: number
+  ts: number
+  source?: string // 't212' | 'manual'
+  free?: number
+  invested?: number
+  ppl?: number
+}
+
+export interface CvGoal {
+  id: string
+  title: string
+  deadline?: string // YYYY-MM-DD
+  priority: Priority
+  desc?: string
+  done: boolean
+  ts: number
+}
+
+export interface CalendarEvent {
+  id: string
+  title: string
+  date: string // YYYY-MM-DD
+  time?: string // HH:MM
+  category?: string
+  notes?: string
+  ts: number
+}
+
+export interface MockExam {
+  id: string
+  date: string
+  score: number
+  ts: number
+}
+
+/** Daily body log (rowId = YYYY-MM-DD). */
+export interface BodyLog {
+  date: string
+  weight?: number
+  sleep?: number
+  water?: number
+  gym: boolean
+  gymNotes?: string
+  cardio: boolean
+  cardioKm?: number
+  cardioMin?: number
+}
+
+export interface Meal {
+  id: string
+  date: string // YYYY-MM-DD
+  name: string
+  cal: number
+  prot: number
+  ts: number
+}
+
+/** Daily social log (rowId = YYYY-MM-DD). */
+export interface SocialLog {
+  date: string
+  rating?: number
+  approaches?: number
+  compliments?: number
+  connections?: number
+  note?: string
+}
+
+/** Daily money/business log (rowId = YYYY-MM-DD). */
+export interface MoneyLog {
+  date: string
+  hours?: number
+  type?: string
+  notes?: string
+}
+
+/** Daily study/cv log (rowId = YYYY-MM-DD). */
+export interface CvLog {
+  date: string
+  problems?: number
+  correct?: number
+  time?: number
+  topic?: string
+  studyHours?: number
+  linkedin?: number
+  calls?: number
+  netNotes?: string
+}
+
+/** Weekly training grid (rowId = 'YYYY-Www'); each cell holds the date the session was done. */
+export interface GymWeek {
+  week: string
+  push?: string
+  pull?: string
+  legs?: string
+  shoulders?: string
+  abs?: string
+  stretch?: string
+}
+
+/** A time-blocking planner block. */
+export interface Block {
+  id: string
+  date: string // YYYY-MM-DD
+  start: string // HH:MM
+  end: string // HH:MM
+  title: string
+  category?: string
+  done: boolean
+  taskId?: string
+}
+
+/** A Top-3 priority slot for a given day. */
+export interface Top3Slot {
+  id: string
+  date: string // YYYY-MM-DD
+  slot: number // 0..2
+  text: string
+  taskId?: string
+}
+
+export interface InboxItem {
+  id: string
+  text: string
+  ts: number
+  triaged: boolean
+}
+
+export interface ChatMessage {
+  id: string
+  role: string // 'user' | 'assistant'
+  content: string
+  ts: number
+}
+
+export interface BusinessPlan {
+  date: string
+  text: string
+  ts: number
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Table id constants
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const T = {
+  tasks: 'tasks',
+  projects: 'projects',
+  contacts: 'contacts',
+  ideas: 'ideas',
+  portfolio: 'portfolio',
+  cvGoals: 'cvGoals',
+  events: 'events',
+  mockExams: 'mockExams',
+  body: 'body',
+  meals: 'meals',
+  social: 'social',
+  money: 'money',
+  cv: 'cv',
+  gymSessions: 'gymSessions',
+  blocks: 'blocks',
+  top3: 'top3',
+  inbox: 'inbox',
+  chat: 'chat',
+  businessPlans: 'businessPlans',
+} as const
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * TinyBase schemas (runtime integrity). Cells absent from a schema are dropped.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const tablesSchema: TablesSchema = {
+  tasks: {
+    title: { type: 'string' },
+    notes: { type: 'string' },
+    priority: { type: 'string', default: 'med' },
+    due: { type: 'string' },
+    category: { type: 'string' },
+    projectId: { type: 'string' },
+    done: { type: 'boolean', default: false },
+    createdTs: { type: 'number' },
+    doneTs: { type: 'number' },
+  },
+  projects: {
+    name: { type: 'string' },
+    status: { type: 'string', default: 'idea' },
+    nextAction: { type: 'string' },
+    link: { type: 'string' },
+    notes: { type: 'string' },
+    category: { type: 'string' },
+    createdTs: { type: 'number' },
+    updatedTs: { type: 'number' },
+    archived: { type: 'boolean', default: false },
+  },
+  contacts: {
+    name: { type: 'string' },
+    met: { type: 'string' },
+    notes: { type: 'string' },
+    lastContact: { type: 'string' },
+    cadenceDays: { type: 'number' },
+    birthday: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  ideas: {
+    title: { type: 'string' },
+    notes: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  portfolio: {
+    date: { type: 'string' },
+    value: { type: 'number' },
+    ts: { type: 'number' },
+    source: { type: 'string' },
+    free: { type: 'number' },
+    invested: { type: 'number' },
+    ppl: { type: 'number' },
+  },
+  cvGoals: {
+    title: { type: 'string' },
+    deadline: { type: 'string' },
+    priority: { type: 'string', default: 'med' },
+    desc: { type: 'string' },
+    done: { type: 'boolean', default: false },
+    ts: { type: 'number' },
+  },
+  events: {
+    title: { type: 'string' },
+    date: { type: 'string' },
+    time: { type: 'string' },
+    category: { type: 'string' },
+    notes: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  mockExams: {
+    date: { type: 'string' },
+    score: { type: 'number' },
+    ts: { type: 'number' },
+  },
+  body: {
+    weight: { type: 'number' },
+    sleep: { type: 'number' },
+    water: { type: 'number' },
+    gym: { type: 'boolean', default: false },
+    gymNotes: { type: 'string' },
+    cardio: { type: 'boolean', default: false },
+    cardioKm: { type: 'number' },
+    cardioMin: { type: 'number' },
+  },
+  meals: {
+    date: { type: 'string' },
+    name: { type: 'string' },
+    cal: { type: 'number', default: 0 },
+    prot: { type: 'number', default: 0 },
+    ts: { type: 'number' },
+  },
+  social: {
+    rating: { type: 'number' },
+    approaches: { type: 'number' },
+    compliments: { type: 'number' },
+    connections: { type: 'number' },
+    note: { type: 'string' },
+  },
+  money: {
+    hours: { type: 'number' },
+    type: { type: 'string' },
+    notes: { type: 'string' },
+  },
+  cv: {
+    problems: { type: 'number' },
+    correct: { type: 'number' },
+    time: { type: 'number' },
+    topic: { type: 'string' },
+    studyHours: { type: 'number' },
+    linkedin: { type: 'number' },
+    calls: { type: 'number' },
+    netNotes: { type: 'string' },
+  },
+  gymSessions: {
+    push: { type: 'string' },
+    pull: { type: 'string' },
+    legs: { type: 'string' },
+    shoulders: { type: 'string' },
+    abs: { type: 'string' },
+    stretch: { type: 'string' },
+  },
+  blocks: {
+    date: { type: 'string' },
+    start: { type: 'string' },
+    end: { type: 'string' },
+    title: { type: 'string' },
+    category: { type: 'string' },
+    done: { type: 'boolean', default: false },
+    taskId: { type: 'string' },
+  },
+  top3: {
+    date: { type: 'string' },
+    slot: { type: 'number', default: 0 },
+    text: { type: 'string' },
+    taskId: { type: 'string' },
+  },
+  inbox: {
+    text: { type: 'string' },
+    ts: { type: 'number' },
+    triaged: { type: 'boolean', default: false },
+  },
+  chat: {
+    role: { type: 'string' },
+    content: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  businessPlans: {
+    text: { type: 'string' },
+    ts: { type: 'number' },
+  },
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Values: profile.* and settings.* (namespaced flat keys)
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const valuesSchema: ValuesSchema = {
+  // Profile — targets & goal dates
+  'profile.name': { type: 'string', default: 'Oto' },
+  'profile.weight': { type: 'number', default: 74 },
+  'profile.targetWeight': { type: 'number', default: 79 },
+  'profile.calTarget': { type: 'number', default: 2000 },
+  'profile.protTarget': { type: 'number', default: 200 },
+  'profile.bizTarget': { type: 'number', default: 4 },
+  'profile.studyTarget': { type: 'number', default: 4 },
+  'profile.bulkTargetWeight': { type: 'number', default: 75 },
+  'profile.bulkTargetDate': { type: 'string', default: '2026-05-17' },
+  'profile.cutTargetWeight': { type: 'number', default: 67 },
+  'profile.cutTargetDate': { type: 'string', default: '2026-08-05' },
+  'profile.portfolioTarget': { type: 'number', default: 10000 },
+  'profile.portfolioTargetDate': { type: 'string', default: '2026-08-05' },
+  'profile.gmatTargetDate': { type: 'string', default: '2026-08-05' },
+  'profile.gmatTargetScore': { type: 'number', default: 700 },
+  'profile.bizCumulativeTarget': { type: 'number', default: 144 },
+  'profile.bizCumulativeDate': { type: 'string', default: '2026-08-05' },
+  'profile.bizCumulativeStart': { type: 'string', default: '2026-06-30' },
+  'profile.dayStart': { type: 'string', default: '07:00' },
+  'profile.dayEnd': { type: 'string', default: '24:00' },
+  // Extended targets present in v1 export
+  'profile.gmatDailyTarget': { type: 'number', default: 50 },
+  'profile.gmatCumulativeTarget': { type: 'number', default: 4300 },
+  'profile.gmatCumulativeDate': { type: 'string', default: '2026-08-01' },
+  'profile.gmatScoreTarget': { type: 'number', default: 700 },
+  'profile.gmatScoreTargetDate': { type: 'string', default: '2027-01-30' },
+  'profile.socialApproachTarget': { type: 'number', default: 86 },
+  'profile.socialComplimentTarget': { type: 'number', default: 86 },
+  'profile.socialConnectionTarget': { type: 'number', default: 86 },
+  'profile.socialCumulativeDate': { type: 'string', default: '2026-08-01' },
+  'profile.socialDailyApproaches': { type: 'number', default: 1 },
+  'profile.socialDailyCompliments': { type: 'number', default: 1 },
+  'profile.socialDailyConnections': { type: 'number', default: 1 },
+  // Settings — secrets live here at runtime only (never committed)
+  'settings.theme': { type: 'string', default: 'dark' },
+  'settings.apiKey': { type: 'string', default: '' },
+  'settings.jbKey': { type: 'string', default: '' },
+  'settings.jbBinId': { type: 'string', default: '' },
+  'settings.t212ProxyUrl': { type: 'string', default: '' },
+  'settings.t212ProxySecret': { type: 'string', default: '' },
+}
