@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { TabId } from '@/lib/nav'
 import { BottomNav } from '@/components/BottomNav'
+import { Ambient } from '@/components/Ambient'
 import { Toaster } from '@/components/ui/sonner'
 
 // Code-split each screen so the initial load stays lean (recharts/motion only
@@ -39,7 +40,8 @@ export default function App() {
   const ActiveScreen = SCREENS[tab]
 
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    <div className="min-h-dvh text-foreground">
+      <Ambient />
       <Suspense fallback={<ScreenFallback />}>
         <AnimatePresence mode="wait">
           <motion.div

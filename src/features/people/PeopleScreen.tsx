@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Users, Plus, TriangleAlert } from 'lucide-react'
+import { Users, Plus, Mic, TriangleAlert } from 'lucide-react'
 import { Screen, EmptyState } from '@/components/Screen'
 import { Button } from '@/components/ui/button'
+import { VoiceDialog } from '@/components/VoiceDialog'
+import { captureContact } from '@/lib/aiCapture'
 import { type Contact } from '@/store/schema'
 import { useAllContacts, sortByRecency, reconnectDueContacts } from '@/store/people'
 import { ContactRow } from './ContactRow'
@@ -10,6 +12,7 @@ import { ContactDialog } from './ContactDialog'
 export function PeopleScreen() {
   const contacts = useAllContacts()
   const [createOpen, setCreateOpen] = useState(false)
+  const [voiceOpen, setVoiceOpen] = useState(false)
   const [editing, setEditing] = useState<Contact | undefined>(undefined)
 
   const sorted = useMemo(() => sortByRecency(contacts), [contacts])
@@ -20,9 +23,19 @@ export function PeopleScreen() {
       title="People"
       subtitle={`${contacts.length} ${contacts.length === 1 ? 'contact' : 'contacts'}`}
       action={
-        <Button size="icon" className="rounded-full" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-5" />
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="icon"
+            className="glow-primary rounded-full"
+            onClick={() => setVoiceOpen(true)}
+            aria-label="Add person by voice"
+          >
+            <Mic className="size-5" />
+          </Button>
+          <Button size="icon" variant="secondary" className="rounded-full" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-5" />
+          </Button>
+        </div>
       }
     >
       {contacts.length === 0 ? (
@@ -56,6 +69,14 @@ export function PeopleScreen() {
         open={editing != null}
         onOpenChange={(open) => !open && setEditing(undefined)}
         contact={editing}
+      />
+      <VoiceDialog
+        open={voiceOpen}
+        onOpenChange={setVoiceOpen}
+        title="Add person"
+        hint="Who did you meet? Name, where, anything to remember"
+        placeholder="e.g. Met Laura at the PwC offsite, works in deals advisory, reconnect every 3 weeks, birthday March 17…"
+        process={captureContact}
       />
     </Screen>
   )

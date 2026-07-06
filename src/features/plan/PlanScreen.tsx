@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Mic } from 'lucide-react'
 import { Screen } from '@/components/Screen'
 import { Button } from '@/components/ui/button'
+import { VoiceDialog } from '@/components/VoiceDialog'
 import { cn } from '@/lib/utils'
 import { todayISO, tomorrowISO, addDaysISO, dayHeaderLabel } from '@/lib/dates'
+import { captureDayPlan } from '@/lib/aiCapture'
 import { type Block } from '@/store/schema'
 import { DayTimeline } from './DayTimeline'
 import { Top3Card } from './Top3Card'
@@ -23,6 +25,8 @@ export function PlanScreen() {
 
   // Task create dialog (owned here so the header + button drives it)
   const [taskCreateOpen, setTaskCreateOpen] = useState(false)
+  // Voice day-planning
+  const [voiceOpen, setVoiceOpen] = useState(false)
 
   function openNewBlock(startHM: string) {
     setEditingBlock(undefined)
@@ -45,9 +49,19 @@ export function PlanScreen() {
       title="Plan"
       subtitle={view === 'timeline' ? dayHeaderLabel(date) : 'everything on your plate'}
       action={
-        <Button size="icon" className="rounded-full" onClick={handleAdd}>
-          <Plus className="size-5" />
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="icon"
+            className="glow-primary rounded-full"
+            onClick={() => setVoiceOpen(true)}
+            aria-label="Plan by voice"
+          >
+            <Mic className="size-5" />
+          </Button>
+          <Button size="icon" variant="secondary" className="rounded-full" onClick={handleAdd}>
+            <Plus className="size-5" />
+          </Button>
+        </div>
       }
     >
       {/* View switch */}
@@ -112,6 +126,15 @@ export function PlanScreen() {
       ) : (
         <TasksView createOpen={taskCreateOpen} onCreateOpenChange={setTaskCreateOpen} />
       )}
+
+      <VoiceDialog
+        open={voiceOpen}
+        onOpenChange={setVoiceOpen}
+        title="Plan your day"
+        hint={`Tell me about ${dayHeaderLabel(date).toLowerCase()} — priorities, time blocks, to-dos`}
+        placeholder="e.g. Gym at 8, GMAT deep work from 9 to 12, PwC in the afternoon, call mom, top priority is finishing the quant set…"
+        process={(text) => captureDayPlan(text, date)}
+      />
     </Screen>
   )
 }

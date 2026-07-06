@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
+import { format } from 'date-fns'
 import { Circle, Clock, ArrowRight, ListChecks, Users, Cake } from 'lucide-react'
-import { Screen } from '@/components/Screen'
+import { Screen, Stagger, StaggerItem } from '@/components/Screen'
 import { TrackerCard } from '@/components/TrackerCard'
 import { ProgressRing } from '@/components/ProgressRing'
 import { cn } from '@/lib/utils'
@@ -53,16 +54,20 @@ export function TodayScreen() {
   const activeTop3 = top3.filter((t) => t.trim())
 
   return (
-    <Screen title={greeting()} subtitle={getProfileString('name') || 'oto.os'}>
-      <div className="space-y-4">
+    <Screen
+      title={greeting()}
+      subtitle={`${getProfileString('name') || 'oto.os'} · ${format(new Date(), 'EEEE, MMM d')}`}
+    >
+      <Stagger className="space-y-4">
         {/* North Stars */}
-        <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-1">
+        <StaggerItem>
+        <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
           {stars.map((s) => {
             const color = pillarColor(s.pillar)
             return (
               <div
                 key={s.id}
-                className="flex w-40 shrink-0 flex-col items-center gap-2 rounded-xl border border-border bg-card p-4"
+                className="glass edge-light flex w-40 shrink-0 flex-col items-center gap-2 rounded-2xl p-4"
               >
                 <ProgressRing pct={s.pct} markerPct={s.expectedPct} color={color} size={76}>
                   <span className="font-mono text-sm font-semibold">{Math.round(s.pct)}%</span>
@@ -86,8 +91,10 @@ export function TodayScreen() {
             )
           })}
         </div>
+        </StaggerItem>
 
         {/* Now / Next */}
+        <StaggerItem>
         <TrackerCard title="Now · Next">
           {now || next ? (
             <div className="space-y-3">
@@ -99,9 +106,11 @@ export function TodayScreen() {
             <p className="text-sm text-muted-foreground">No blocks planned for today.</p>
           )}
         </TrackerCard>
+        </StaggerItem>
 
         {/* Top 3 */}
         {activeTop3.length > 0 && (
+          <StaggerItem>
           <TrackerCard title="Top 3 today">
             <ol className="space-y-2">
               {activeTop3.map((t, i) => (
@@ -114,10 +123,12 @@ export function TodayScreen() {
               ))}
             </ol>
           </TrackerCard>
+          </StaggerItem>
         )}
 
         {/* Tasks */}
         {(overdue.length > 0 || dueToday.length > 0) && (
+          <StaggerItem>
           <TrackerCard title="On your plate">
             <ul className="space-y-2">
               {overdue.map((t) => (
@@ -138,10 +149,12 @@ export function TodayScreen() {
               ))}
             </ul>
           </TrackerCard>
+          </StaggerItem>
         )}
 
         {/* People to reach */}
         {reach.length > 0 && (
+          <StaggerItem>
           <TrackerCard title="People to reach">
             <ul className="space-y-2">
               {reach.map((c) => (
@@ -159,6 +172,7 @@ export function TodayScreen() {
               ))}
             </ul>
           </TrackerCard>
+          </StaggerItem>
         )}
 
         {stars.length === 0 && (
@@ -167,7 +181,7 @@ export function TodayScreen() {
             <p className="text-sm">Log some data and your briefing fills in.</p>
           </div>
         )}
-      </div>
+      </Stagger>
     </Screen>
   )
 }

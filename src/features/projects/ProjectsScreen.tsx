@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { FolderKanban, Plus } from 'lucide-react'
-import { Screen, EmptyState } from '@/components/Screen'
+import { FolderKanban, Plus, Mic } from 'lucide-react'
+import { Screen, EmptyState, Stagger, StaggerItem } from '@/components/Screen'
 import { Button } from '@/components/ui/button'
+import { VoiceDialog } from '@/components/VoiceDialog'
+import { captureProject } from '@/lib/aiCapture'
 import { type Project } from '@/store/schema'
 import { useAllProjects, sortProjects, useOpenTaskCounts } from '@/store/projects'
 import { ProjectCard } from './ProjectCard'
@@ -11,6 +13,7 @@ export function ProjectsScreen() {
   const projects = useAllProjects()
   const counts = useOpenTaskCounts()
   const [createOpen, setCreateOpen] = useState(false)
+  const [voiceOpen, setVoiceOpen] = useState(false)
   const [editing, setEditing] = useState<Project | undefined>(undefined)
 
   const { active, archived } = useMemo(() => {
@@ -24,9 +27,19 @@ export function ProjectsScreen() {
       title="Projects"
       subtitle={`${active.length} active`}
       action={
-        <Button size="icon" className="rounded-full" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-5" />
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="icon"
+            className="glow-primary rounded-full"
+            onClick={() => setVoiceOpen(true)}
+            aria-label="Add project by voice"
+          >
+            <Mic className="size-5" />
+          </Button>
+          <Button size="icon" variant="secondary" className="rounded-full" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-5" />
+          </Button>
+        </div>
       }
     >
       {active.length === 0 && archived.length === 0 ? (
@@ -37,11 +50,13 @@ export function ProjectsScreen() {
       ) : (
         <div className="space-y-6">
           {active.length > 0 && (
-            <div className="space-y-3">
+            <Stagger className="space-y-3">
               {active.map((p) => (
-                <ProjectCard key={p.id} project={p} openTasks={counts[p.id] ?? 0} onEdit={setEditing} />
+                <StaggerItem key={p.id}>
+                  <ProjectCard project={p} openTasks={counts[p.id] ?? 0} onEdit={setEditing} />
+                </StaggerItem>
               ))}
-            </div>
+            </Stagger>
           )}
 
           {archived.length > 0 && (
@@ -72,6 +87,14 @@ export function ProjectsScreen() {
         open={editing != null}
         onOpenChange={(open) => !open && setEditing(undefined)}
         project={editing}
+      />
+      <VoiceDialog
+        open={voiceOpen}
+        onOpenChange={setVoiceOpen}
+        title="New project"
+        hint="Describe the project — what it is, its status, the next step"
+        placeholder="e.g. Nootropics e-commerce, still an idea, next step is validating demand with a landing page…"
+        process={captureProject}
       />
     </Screen>
   )

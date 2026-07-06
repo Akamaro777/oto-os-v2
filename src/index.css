@@ -53,30 +53,34 @@
     --radius-xl: calc(var(--radius) * 1.4);
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
+
+    /* Motion tokens — one rhythm everywhere (Cinema Dark spec) */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Dark-first: these values apply by default (html carries `.dark`). */
 :root {
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    --background: #0c0d10;
-    --foreground: #e8e8ec;
-    --card: #131519;
-    --card-foreground: #e8e8ec;
-    --popover: #16181d;
-    --popover-foreground: #e8e8ec;
+    /* Layered void — never pure black (OLED smear), never flat */
+    --background: #08090c;
+    --foreground: #ededf0;
+    --card: rgba(255, 255, 255, 0.035);
+    --card-foreground: #ededf0;
+    --popover: #14161b;
+    --popover-foreground: #ededf0;
     --primary: #c9f158;
-    --primary-foreground: #0c0d10;
-    --secondary: #1b1e24;
-    --secondary-foreground: #e8e8ec;
-    --muted: #1b1e24;
-    --muted-foreground: #8b8d95;
-    --accent: #23262e;
+    --primary-foreground: #0b0c07;
+    --secondary: rgba(255, 255, 255, 0.06);
+    --secondary-foreground: #ededf0;
+    --muted: rgba(255, 255, 255, 0.06);
+    --muted-foreground: #8a8f98;
+    --accent: rgba(255, 255, 255, 0.09);
     --accent-foreground: #f4f4f6;
-    --destructive: #ef4444;
-    --border: oklch(1 0 0 / 8%);
-    --input: oklch(1 0 0 / 12%);
-    --ring: #c9f158;
+    --destructive: #f36a5a;
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.1);
+    --ring: rgba(201, 241, 88, 0.6);
 
     --chart-1: #c9f158;
     --chart-2: #fb923c;
@@ -89,7 +93,10 @@
     --pillar-social: #f0abfc;
     --pillar-money: #4ade80;
     --pillar-cv: #7dd3fc;
-    --pillar-personal: #8b8d95;
+    --pillar-personal: #8a8f98;
+
+    /* Accent glow (behind primary actions, active states) */
+    --glow-primary: rgba(201, 241, 88, 0.28);
 }
 
 @layer base {
@@ -101,6 +108,106 @@
         color-scheme: dark;
     }
     body {
-        @apply bg-background text-foreground antialiased;
+        @apply text-foreground antialiased;
+        /* Gradient void base — deep at the bottom, faint lift at the top */
+        background:
+            radial-gradient(120% 60% at 50% -10%, #141720 0%, transparent 60%),
+            linear-gradient(180deg, #0b0d12 0%, #08090c 45%, #060709 100%);
+        background-attachment: fixed;
+        min-height: 100dvh;
+    }
+    button, [role="button"] {
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+}
+
+@layer utilities {
+    /* Frosted glass surface — cards, nav, sheets */
+    .glass {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.025) 100%);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    }
+    /* Elevated glass — floating nav, dialogs */
+    .glass-heavy {
+        background: linear-gradient(180deg, rgba(24, 26, 32, 0.82) 0%, rgba(14, 15, 19, 0.88) 100%);
+        backdrop-filter: blur(28px) saturate(160%);
+        -webkit-backdrop-filter: blur(28px) saturate(160%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            0 16px 48px -12px rgba(0, 0, 0, 0.7);
+    }
+    /* Lime glow for primary actions / active states */
+    .glow-primary {
+        box-shadow: 0 0 24px var(--glow-primary), 0 0 4px rgba(201, 241, 88, 0.35);
+    }
+    /* Gradient display text for hero headings */
+    .text-hero {
+        background: linear-gradient(180deg, #ffffff 20%, rgba(237, 237, 240, 0.62) 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    /* Press feedback — every tappable card/button */
+    .pressable {
+        transition: transform 0.15s var(--ease-out-expo), opacity 0.15s ease;
+    }
+    .pressable:active {
+        transform: scale(0.97);
+    }
+    /* Hairline top highlight for cards */
+    .edge-light {
+        position: relative;
+    }
+    .edge-light::before {
+        content: '';
+        position: absolute;
+        inset: 0 12% auto 12%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+        pointer-events: none;
+    }
+    /* Slow ambient drift for background blobs */
+    @keyframes ambient-drift {
+        0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+        33% { transform: translate3d(4%, 6%, 0) scale(1.08); }
+        66% { transform: translate3d(-5%, -4%, 0) scale(0.95); }
+    }
+    .ambient-blob {
+        animation: ambient-drift 26s ease-in-out infinite;
+        will-change: transform;
+    }
+    /* Recording pulse for the voice button */
+    @keyframes rec-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(201, 241, 88, 0.4); }
+        70% { box-shadow: 0 0 0 22px rgba(201, 241, 88, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(201, 241, 88, 0); }
+    }
+    .rec-pulse {
+        animation: rec-pulse 1.6s var(--ease-out-expo) infinite;
+    }
+    /* Hide scrollbars on horizontal card rails */
+    .no-scrollbar {
+        scrollbar-width: none;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ambient-blob, .rec-pulse {
+        animation: none;
+    }
+    *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
     }
 }

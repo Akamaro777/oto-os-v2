@@ -1,6 +1,7 @@
+import { useId } from 'react'
 import {
-  Line,
-  LineChart,
+  Area,
+  AreaChart,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -12,15 +13,17 @@ import {
 } from 'recharts'
 import { shortDate } from '@/lib/dates'
 
-const AXIS = '#8b8d95'
-const GRID = 'rgba(255,255,255,0.08)'
+const AXIS = '#8a8f98'
+const GRID = 'rgba(255,255,255,0.07)'
 
 const tooltipStyle = {
-  background: '#16181d',
+  background: 'rgba(20,22,27,0.92)',
+  backdropFilter: 'blur(12px)',
   border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 8,
+  borderRadius: 12,
   fontSize: 12,
   padding: '6px 10px',
+  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
 } as const
 
 interface LineTrendProps {
@@ -32,7 +35,9 @@ interface LineTrendProps {
   height?: number
 }
 
+/** Smooth area trend with a soft gradient fill and glow dot — the signature chart. */
 export function LineTrend({ data, color, unit = '', target, height = 160 }: LineTrendProps) {
+  const gradId = useId()
   if (data.length === 0) {
     return <EmptyChart height={height} />
   }
@@ -44,7 +49,13 @@ export function LineTrend({ data, color, unit = '', target, height = 160 }: Line
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 6, right: 10, bottom: 0, left: 4 }}>
+      <AreaChart data={data} margin={{ top: 6, right: 10, bottom: 0, left: 4 }}>
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.28} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
         <XAxis
           dataKey="date"
           tickFormatter={shortDate}
@@ -65,7 +76,7 @@ export function LineTrend({ data, color, unit = '', target, height = 160 }: Line
             y={target}
             stroke={color}
             strokeDasharray="4 4"
-            strokeOpacity={0.5}
+            strokeOpacity={0.45}
             label={{ value: `${target}${unit}`, fill: AXIS, fontSize: 10, position: 'insideTopRight' }}
           />
         )}
@@ -75,15 +86,18 @@ export function LineTrend({ data, color, unit = '', target, height = 160 }: Line
           formatter={(v) => [`${v ?? ''}${unit}`, '']}
           cursor={{ stroke: GRID }}
         />
-        <Line
+        <Area
           type="monotone"
           dataKey="value"
           stroke={color}
-          strokeWidth={2}
+          strokeWidth={2.25}
+          fill={`url(#${gradId})`}
           dot={false}
-          activeDot={{ r: 3, fill: color }}
+          activeDot={{ r: 4, fill: color, stroke: 'rgba(0,0,0,0.4)', strokeWidth: 4 }}
+          animationDuration={600}
+          animationEasing="ease-out"
         />
-      </LineChart>
+      </AreaChart>
     </ResponsiveContainer>
   )
 }
@@ -115,9 +129,9 @@ export function BarTotals({ data, color, height = 160 }: BarTotalsProps) {
           width={34}
         />
         <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+        <Bar dataKey="count" radius={[6, 6, 2, 2]} animationDuration={600}>
           {data.map((_, i) => (
-            <Cell key={i} fill={color} />
+            <Cell key={i} fill={color} fillOpacity={0.85} />
           ))}
         </Bar>
       </BarChart>
@@ -128,7 +142,7 @@ export function BarTotals({ data, color, height = 160 }: BarTotalsProps) {
 function EmptyChart({ height }: { height: number }) {
   return (
     <div
-      className="flex items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground"
+      className="flex items-center justify-center rounded-xl border border-dashed border-border text-xs text-muted-foreground"
       style={{ height }}
     >
       No data yet

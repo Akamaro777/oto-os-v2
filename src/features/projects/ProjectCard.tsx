@@ -17,7 +17,7 @@ export function ProjectCard({ project, openTasks, onEdit }: ProjectCardProps) {
     <button
       type="button"
       onClick={() => onEdit(project)}
-      className="flex w-full flex-col gap-2 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-muted-foreground/30"
+      className="glass edge-light pressable flex w-full flex-col gap-2 rounded-2xl p-4 text-left transition-colors hover:border-muted-foreground/30"
       style={{ borderLeftColor: pillarColor(project.category), borderLeftWidth: 2 }}
     >
       <div className="flex items-start justify-between gap-2">
