@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { Upload, Download } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getSetting, setSetting } from '@/store/settings'
 import { importV1 } from '@/lib/importV1'
+import { exportBackup } from '@/lib/exportData'
 import { toast } from 'sonner'
 
 interface SettingsSheetProps {
@@ -113,6 +114,23 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
             </Button>
             <p className="text-[11px] text-muted-foreground">
               Loads your old app's export into this device. Merges into existing data.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 border-t border-border pt-4">
+            <Label>Backup</Label>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => {
+                exportBackup()
+                toast.success('Backup downloaded')
+              }}
+            >
+              <Download className="size-4" /> Download full backup
+            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              Saves everything on this device as a JSON file. Keep one somewhere safe.
             </p>
           </div>
         </div>

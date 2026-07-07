@@ -44,6 +44,18 @@ export function useBodySeries(field: 'weight' | 'sleep'): { date: string; value:
   )
 }
 
+/** Days with any body log — for the consistency heatmap (1 per logged day). */
+export function useBodyActivityMap(): Record<string, number> {
+  const table = useTable(T.body, store) as Record<string, Cells>
+  return useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const [date, row] of Object.entries(table)) {
+      if (Object.keys(row).length > 0) out[date] = 1
+    }
+    return out
+  }, [table])
+}
+
 /** Set (or clear when '') a numeric body field for a date. */
 export function setBodyNumber(date: string, field: 'weight' | 'sleep' | 'water', value: string): void {
   const num = Number(value)

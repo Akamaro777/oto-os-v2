@@ -1,18 +1,20 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
-import { Circle, Clock, ArrowRight, ListChecks, Users, Cake } from 'lucide-react'
+import { Circle, Clock, ArrowRight, ListChecks, Users, Cake, Sparkles, RefreshCw } from 'lucide-react'
 import { Screen, Stagger, StaggerItem } from '@/components/Screen'
 import { TrackerCard } from '@/components/TrackerCard'
 import { ProgressRing } from '@/components/ProgressRing'
 import { cn } from '@/lib/utils'
 import { PILLAR_META, pillarColor } from '@/lib/pillars'
-import { todayISO, relativeDueLabel } from '@/lib/dates'
+import { todayISO, relativeDueLabel, parseHM } from '@/lib/dates'
 import { reconnectDue, birthdaySoon } from '@/lib/people'
 import { getProfileString } from '@/store/profile'
-import { useNorthStars, type GoalStatus } from '@/store/northStars'
+import { useNorthStars, type NorthStar, type GoalStatus } from '@/store/northStars'
+import { useBriefing } from '@/store/briefing'
 import { useBlocksByDate, computeNowNext, useTop3 } from '@/store/planner'
 import { useAllTasks, filterTasks, sortTasks } from '@/store/tasks'
 import { useAllContacts } from '@/store/people'
+import { GoalDetailSheet } from './GoalDetailSheet'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
   complete: '#c9f158',
@@ -29,6 +31,10 @@ function greeting(): string {
   return 'Good evening'
 }
 
+function currentMinutes(): number {
+  return new Date().getHours() * 60 + new Date().getMinutes()
+}
+
 export function TodayScreen() {
   const today = todayISO()
   const stars = useNorthStars()
@@ -36,8 +42,15 @@ export function TodayScreen() {
   const top3 = useTop3(today)
   const tasks = useAllTasks()
   const contacts = useAllContacts()
+  const [detail, setDetail] = useState<NorthStar | null>(null)
 
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
+  // Ticking clock so the Now-block countdown stays live.
+  const [nowMin, setNowMin] = useState(currentMinutes)
+  useEffect(() => {
+    const t = setInterval(() => setNowMin(currentMinutes()), 30_000)
+    return () => clearInterval(t)
+  }, [])
+
   const { now, next } = useMemo(() => computeNowNext(blocks, nowMin), [blocks, nowMin])
 
   const dueToday = useMemo(
@@ -59,15 +72,23 @@ export function TodayScreen() {
       subtitle={`${getProfileString('name') || 'oto.os'} · ${format(new Date(), 'EEEE, MMM d')}`}
     >
       <Stagger className="space-y-4">
+        {/* AI morning briefing */}
+        <StaggerItem>
+          <BriefingCard />
+        </StaggerItem>
+
         {/* North Stars */}
         <StaggerItem>
         <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
           {stars.map((s) => {
             const color = pillarColor(s.pillar)
             return (
-              <div
+              <button
+                type="button"
                 key={s.id}
-                className="glass edge-light flex w-40 shrink-0 flex-col items-center gap-2 rounded-2xl p-4"
+                onClick={() => setDetail(s)}
+                aria-label={`${s.label} details`}
+                className="glass edge-light pressable flex w-40 shrink-0 flex-col items-center gap-2 rounded-2xl p-4"
               >
                 <ProgressRing pct={s.pct} markerPct={s.expectedPct} color={color} size={76}>
                   <span className="font-mono text-sm font-semibold">{Math.round(s.pct)}%</span>
@@ -87,7 +108,7 @@ export function TodayScreen() {
                     {s.pace} · {s.meta}
                   </p>
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>
@@ -98,7 +119,7 @@ export function TodayScreen() {
         <TrackerCard title="Now · Next">
           {now || next ? (
             <div className="space-y-3">
-              {now && <TimelineRow label="Now" block={now} highlight />}
+              {now && <TimelineRow label="Now" block={now} highlight nowMin={nowMin} />}
               {next && <TimelineRow label="Next" block={next} />}
               {!now && !next && <p className="text-sm text-muted-foreground">Nothing scheduled.</p>}
             </div>
@@ -182,7 +203,56 @@ export function TodayScreen() {
           </div>
         )}
       </Stagger>
+
+      <GoalDetailSheet star={detail} onClose={() => setDetail(null)} />
     </Screen>
+  )
+}
+
+/** AI morning briefing — auto-generates once per day when a key is set. */
+function BriefingCard() {
+  const briefing = useBriefing()
+
+  useEffect(() => {
+    if (briefing.stale && !briefing.generating) {
+      briefing.generate().catch(() => {
+        /* silent — the card just stays in its hint state */
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [briefing.stale])
+
+  if (!briefing.text && !briefing.generating && !briefing.stale) return null
+
+  return (
+    <section
+      className="glass edge-light rounded-2xl p-4"
+      style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 0 32px rgba(201,241,88,0.05)' }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-primary">
+          <Sparkles className="size-3" /> Briefing
+        </h2>
+        {briefing.text && (
+          <button
+            type="button"
+            onClick={() => briefing.generate().catch(() => {})}
+            aria-label="Regenerate briefing"
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <RefreshCw className={cn('size-3.5', briefing.generating && 'animate-spin')} />
+          </button>
+        )}
+      </div>
+      {briefing.generating && !briefing.text ? (
+        <div className="space-y-2">
+          <div className="h-3.5 w-full animate-pulse rounded bg-secondary" />
+          <div className="h-3.5 w-3/4 animate-pulse rounded bg-secondary" />
+        </div>
+      ) : (
+        <p className="text-[13.5px] leading-relaxed text-foreground/90">{briefing.text}</p>
+      )}
+    </section>
   )
 }
 
@@ -190,37 +260,70 @@ function TimelineRow({
   label,
   block,
   highlight,
+  nowMin,
 }: {
   label: string
   block: { title: string; start: string; end: string; category?: string }
   highlight?: boolean
+  /** When set (Now row), renders a live countdown + progress bar. */
+  nowMin?: number
 }) {
   const color = pillarColor(block.category)
   const pillar = block.category ? PILLAR_META[
     block.category as keyof typeof PILLAR_META
   ]?.label : undefined
+
+  // Live progress through the current block
+  let remaining: number | null = null
+  let progress = 0
+  if (highlight && nowMin != null) {
+    const start = parseHM(block.start)
+    const end = block.end ? parseHM(block.end) : start + 60
+    remaining = Math.max(0, end - nowMin)
+    progress = Math.min(100, Math.max(0, ((nowMin - start) / Math.max(1, end - start)) * 100))
+  }
+
   return (
-    <div className="flex items-center gap-3">
-      <span
-        className={cn(
-          'flex size-10 shrink-0 items-center justify-center rounded-lg',
-          highlight ? 'text-background' : 'bg-secondary text-muted-foreground',
-        )}
-        style={highlight ? { backgroundColor: color } : undefined}
-      >
-        {highlight ? <Clock className="size-5" /> : <ArrowRight className="size-4" />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{block.title}</p>
-        <p className="font-mono text-[11px] text-muted-foreground">
-          {block.start}
-          {block.end ? `–${block.end}` : ''}
-          {pillar && ` · ${pillar}`}
-        </p>
+    <div>
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            'flex size-10 shrink-0 items-center justify-center rounded-lg',
+            highlight ? 'text-background' : 'bg-secondary text-muted-foreground',
+          )}
+          style={highlight ? { backgroundColor: color, boxShadow: `0 0 14px ${color}55` } : undefined}
+        >
+          {highlight ? <Clock className="size-5" /> : <ArrowRight className="size-4" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{block.title}</p>
+          <p className="font-mono text-[11px] text-muted-foreground">
+            {block.start}
+            {block.end ? `–${block.end}` : ''}
+            {pillar && ` · ${pillar}`}
+          </p>
+        </div>
+        <span className="shrink-0 text-right font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+          {remaining != null ? (
+            <>
+              <span className="block text-[13px] normal-case tabular-nums" style={{ color }}>
+                {remaining >= 60 ? `${Math.floor(remaining / 60)}h ${remaining % 60}m` : `${remaining}m`}
+              </span>
+              left
+            </>
+          ) : (
+            label
+          )}
+        </span>
       </div>
-      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
+      {remaining != null && (
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-secondary" style={{ marginLeft: 52 }}>
+          <div
+            className="h-full rounded-full transition-[width] duration-1000"
+            style={{ width: `${progress}%`, backgroundColor: color }}
+          />
+        </div>
+      )}
     </div>
   )
 }

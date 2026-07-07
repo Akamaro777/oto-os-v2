@@ -11,6 +11,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CalendarClock, Check, Link2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { pillarColor } from '@/lib/pillars'
+import { celebrateFromEvent } from '@/lib/celebrate'
 import { parseHM, formatHM } from '@/lib/dates'
 import { type Block, type CalendarEvent } from '@/store/schema'
 import {
@@ -229,6 +230,7 @@ function DraggableBlock({
         onPointerDown={(ev) => ev.stopPropagation()}
         onClick={(ev) => {
           ev.stopPropagation()
+          if (!block.done) celebrateFromEvent(ev)
           toggleBlock(block.id)
         }}
         aria-label={block.done ? 'Mark not done' : 'Mark done'}

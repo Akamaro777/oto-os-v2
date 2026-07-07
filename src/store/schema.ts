@@ -419,6 +419,9 @@ export const valuesSchema: ValuesSchema = {
   'profile.socialDailyApproaches': { type: 'number', default: 1 },
   'profile.socialDailyCompliments': { type: 'number', default: 1 },
   'profile.socialDailyConnections': { type: 'number', default: 1 },
+  // App state — cached AI morning briefing (regenerated daily)
+  'app.briefingDate': { type: 'string', default: '' },
+  'app.briefingText': { type: 'string', default: '' },
   // Settings — secrets live here at runtime only (never committed)
   'settings.theme': { type: 'string', default: 'dark' },
   'settings.apiKey': { type: 'string', default: '' },

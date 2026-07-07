@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { LineTrend } from '@/components/charts'
+import { CountUp } from '@/components/CountUp'
 import { PILLAR_META } from '@/lib/pillars'
 import { shortDate, todayISO } from '@/lib/dates'
 import { getProfileNumber } from '@/store/profile'
@@ -61,8 +62,8 @@ export function MoneyTracker() {
       <TrackerCard title="Net worth">
         <div className="flex items-end justify-between">
           <div>
-            <p className="font-serif text-4xl" style={{ color: MONEY }}>
-              {eur(value)}
+            <p className="font-serif text-4xl" style={{ color: MONEY, textShadow: `0 0 24px ${MONEY}44` }}>
+              <CountUp value={value} format={eur} />
             </p>
             <p className="mt-1 font-mono text-[11px] text-muted-foreground">
               target {eur(target)}

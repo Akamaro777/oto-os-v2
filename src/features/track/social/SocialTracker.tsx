@@ -4,9 +4,11 @@ import { TrackerCard } from '@/components/TrackerCard'
 import { DayStepper } from '@/components/DayStepper'
 import { LineTrend } from '@/components/charts'
 import { cn } from '@/lib/utils'
+import { celebrateFromEvent } from '@/lib/celebrate'
 import { todayISO } from '@/lib/dates'
 import { PILLAR_META } from '@/lib/pillars'
-import { useSocialLog, setSocialRating, useSocialSeries } from '@/store/social'
+import { YearHeatmap } from '@/components/YearHeatmap'
+import { useSocialLog, setSocialRating, useSocialSeries, useRatingMap } from '@/store/social'
 
 const SOCIAL = PILLAR_META.social.color
 
@@ -20,6 +22,7 @@ export function SocialTracker() {
   const [date, setDate] = useState(todayISO())
   const log = useSocialLog(date)
   const series = useSocialSeries(7)
+  const ratingMap = useRatingMap()
 
   return (
     <div className="space-y-4">
@@ -49,7 +52,10 @@ export function SocialTracker() {
                 key={n}
                 type="button"
                 whileTap={{ scale: 0.85 }}
-                onClick={() => setSocialRating(date, n)}
+                onClick={(e) => {
+                  if (n >= 8) celebrateFromEvent(e)
+                  setSocialRating(date, n)
+                }}
                 aria-label={`Rate ${n}`}
                 className={cn(
                   'h-10 flex-1 rounded-lg text-[11px] font-medium transition-all duration-200',
@@ -70,6 +76,10 @@ export function SocialTracker() {
 
       <TrackerCard title="Last 7 days">
         <LineTrend data={series} color={SOCIAL} unit="/10" height={150} />
+      </TrackerCard>
+
+      <TrackerCard title="Year in days">
+        <YearHeatmap data={ratingMap} color={SOCIAL} />
       </TrackerCard>
     </div>
   )

@@ -56,6 +56,19 @@ export function useSocialSeries(days = 7, anchor = todayISO()): { date: string; 
   }, [table, days, anchor])
 }
 
+/** date → rating, for the consistency heatmap. */
+export function useRatingMap(): Record<string, number> {
+  const table = useTable(T.social, store) as Record<string, Cells>
+  return useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const [date, row] of Object.entries(table)) {
+      const r = Number(row.rating ?? 0)
+      if (r > 0) out[date] = r
+    }
+    return out
+  }, [table])
+}
+
 /** Most recent days that have a note. */
 export function useRecentSocialNotes(limit = 5): SocialLog[] {
   const table = useTable(T.social, store) as Record<string, Cells>

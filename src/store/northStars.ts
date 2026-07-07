@@ -23,6 +23,10 @@ export interface NorthStar {
   statusText: string
   /** e.g. '1.2kg ahead' / '€400 behind'. */
   pace: string
+  /** Raw numbers for the detail view. */
+  currentValue: number
+  targetValue: number
+  daysLeft: number
 }
 
 const BULK_BASELINE = 60 // Oto's historical starting weight
@@ -99,6 +103,9 @@ export function useNorthStars(): NorthStar[] {
         expectedPct,
         current: kg(latestWeight),
         meta: `${Math.max(0, daysBetween(today, bulkDate))}d left`,
+        currentValue: latestWeight,
+        targetValue: bulkTgt,
+        daysLeft: Math.max(0, daysBetween(today, bulkDate)),
         status,
         statusText: statusText(status),
         pace: paceLine(latestWeight, expectedWeight, kg, false),
@@ -120,6 +127,9 @@ export function useNorthStars(): NorthStar[] {
         expectedPct,
         current: kg(latestWeight),
         meta: `${Math.max(0, daysBetween(today, cutDate))}d left`,
+        currentValue: latestWeight,
+        targetValue: cutTgt,
+        daysLeft: Math.max(0, daysBetween(today, cutDate)),
         status,
         statusText: statusText(status),
         pace: paceLine(latestWeight, expectedWeight, kg, true),
@@ -148,6 +158,9 @@ export function useNorthStars(): NorthStar[] {
       expectedPct: moneyExpectedPct,
       current: eur(current),
       meta: `${Math.max(0, daysBetween(today, moneyDate))}d left`,
+      currentValue: current,
+      targetValue: moneyTgt,
+      daysLeft: Math.max(0, daysBetween(today, moneyDate)),
       status: moneyStatus,
       statusText: statusText(moneyStatus),
       pace: paceLine(current, moneyTgt * (moneyExpectedPct / 100), eur, false),
@@ -167,6 +180,9 @@ export function useNorthStars(): NorthStar[] {
       expectedPct: bizExpectedPct,
       current: hrs(cumulative.logged),
       meta: `${Math.max(0, daysBetween(today, cumulative.end))}d left`,
+      currentValue: cumulative.logged,
+      targetValue: cumulative.target,
+      daysLeft: Math.max(0, daysBetween(today, cumulative.end)),
       status: bizStatus,
       statusText: statusText(bizStatus),
       pace: paceLine(cumulative.logged, cumulative.target * (bizExpectedPct / 100), hrs, false),
@@ -193,6 +209,9 @@ export function useNorthStars(): NorthStar[] {
         expectedPct,
         current: `${latest}`,
         meta: `${Math.max(0, daysBetween(today, gmatDate))}d left`,
+        currentValue: latest,
+        targetValue: scoreTgt,
+        daysLeft: Math.max(0, daysBetween(today, gmatDate)),
         status,
         statusText: statusText(status),
         pace: paceLine(latest, start + range * (expectedPct / 100), pts, false),
@@ -206,6 +225,9 @@ export function useNorthStars(): NorthStar[] {
         expectedPct: 0,
         current: '—',
         meta: `${Math.max(0, daysBetween(today, gmatDate))}d left`,
+        currentValue: 0,
+        targetValue: scoreTgt,
+        daysLeft: Math.max(0, daysBetween(today, gmatDate)),
         status: 'ontrack',
         statusText: 'NO MOCKS',
         pace: 'log a mock',

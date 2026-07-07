@@ -1,5 +1,6 @@
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
+import { celebrateFromEvent } from '@/lib/celebrate'
 import { type Task } from '@/store/schema'
 import { toggleTask } from '@/store/tasks'
 import { pillarColor, resolvePillar, PILLAR_META } from '@/lib/pillars'
@@ -24,6 +25,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
       <Checkbox
         checked={task.done}
         onCheckedChange={() => toggleTask(task.id)}
+        onClick={(e) => !task.done && celebrateFromEvent(e)}
         className="mt-0.5"
         aria-label={task.done ? 'Mark not done' : 'Mark done'}
       />

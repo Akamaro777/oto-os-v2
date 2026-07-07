@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { celebrateFromEvent } from '@/lib/celebrate'
 import { GYM_SLOTS, useGymWeek, toggleGymSession, type GymSlot } from '@/store/body'
 import { isoWeekKey, todayISO, shortDate } from '@/lib/dates'
 
@@ -17,7 +18,10 @@ export function TrainingGrid() {
           <button
             key={key}
             type="button"
-            onClick={() => toggleGymSession(week, key, todayISO())}
+            onClick={(e) => {
+              if (!done) celebrateFromEvent(e)
+              toggleGymSession(week, key, todayISO())
+            }}
             className={cn(
               'flex flex-col items-center gap-1 rounded-lg border px-1 py-3 transition-colors',
               done

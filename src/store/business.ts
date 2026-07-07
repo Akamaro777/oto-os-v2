@@ -33,6 +33,19 @@ export function useBusinessSeries(days = 7, anchor = todayISO()): { date: string
   }, [table, days, anchor])
 }
 
+/** date → hours worked, for the consistency heatmap. */
+export function useBusinessHoursMap(): Record<string, number> {
+  const table = useTable(T.money, store) as Record<string, Cells>
+  return useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const [date, row] of Object.entries(table)) {
+      const h = Number(row.hours ?? 0)
+      if (h > 0) out[date] = h
+    }
+    return out
+  }, [table])
+}
+
 export interface Cumulative {
   logged: number
   target: number

@@ -13,15 +13,18 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { LineTrend } from '@/components/charts'
+import { CountUp } from '@/components/CountUp'
 import { PILLAR_META } from '@/lib/pillars'
 import { todayISO, shortDate } from '@/lib/dates'
 import { getProfileNumber } from '@/store/profile'
+import { YearHeatmap } from '@/components/YearHeatmap'
 import {
   useCvLog,
   setStudyHours,
   setPracticeNumber,
   setPracticeTopic,
   useStudySeries,
+  useStudyHoursMap,
   useMockExams,
   addMockExam,
   deleteMockExam,
@@ -36,6 +39,7 @@ export function StudyTracker() {
 
   const log = useCvLog(date)
   const series = useStudySeries(7)
+  const hoursMap = useStudyHoursMap()
   const mocks = useMockExams()
 
   const dailyTarget = getProfileNumber('studyTarget')
@@ -55,8 +59,8 @@ export function StudyTracker() {
       <TrackerCard title="Study hours">
         <div className="flex items-center justify-between">
           <div>
-            <span className="font-serif text-4xl" style={{ color: CV }}>
-              {hours}
+            <span className="font-serif text-4xl" style={{ color: CV, textShadow: `0 0 24px ${CV}44` }}>
+              <CountUp value={hours} format={(v) => (Math.round(v * 2) / 2).toString()} />
             </span>
             <span className="font-mono text-sm text-muted-foreground"> h · target {dailyTarget}/day</span>
           </div>
@@ -126,6 +130,10 @@ export function StudyTracker() {
 
       <TrackerCard title="Study hours — last 7 days">
         <LineTrend data={series} color={CV} unit="h" target={dailyTarget} height={150} />
+      </TrackerCard>
+
+      <TrackerCard title="Consistency">
+        <YearHeatmap data={hoursMap} color={CV} />
       </TrackerCard>
 
       <TrackerCard

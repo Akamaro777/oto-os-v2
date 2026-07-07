@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Mic } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Mic, Sparkles, Loader2 } from 'lucide-react'
 import { Screen } from '@/components/Screen'
 import { Button } from '@/components/ui/button'
 import { VoiceDialog } from '@/components/VoiceDialog'
 import { cn } from '@/lib/utils'
 import { todayISO, tomorrowISO, addDaysISO, dayHeaderLabel } from '@/lib/dates'
-import { captureDayPlan } from '@/lib/aiCapture'
+import { captureDayPlan, autoPlanDay } from '@/lib/aiCapture'
+import { AnthropicError } from '@/lib/anthropic'
+import { toast } from 'sonner'
 import { type Block } from '@/store/schema'
 import { DayTimeline } from './DayTimeline'
 import { Top3Card } from './Top3Card'
@@ -27,6 +29,21 @@ export function PlanScreen() {
   const [taskCreateOpen, setTaskCreateOpen] = useState(false)
   // Voice day-planning
   const [voiceOpen, setVoiceOpen] = useState(false)
+  // One-tap agentic planning
+  const [planning, setPlanning] = useState(false)
+
+  async function handleAutoPlan() {
+    if (planning) return
+    setPlanning(true)
+    try {
+      const summary = await autoPlanDay(date)
+      toast.success(summary)
+    } catch (err) {
+      toast.error(err instanceof AnthropicError ? err.message : 'Auto-plan failed')
+    } finally {
+      setPlanning(false)
+    }
+  }
 
   function openNewBlock(startHM: string) {
     setEditingBlock(undefined)
@@ -110,6 +127,23 @@ export function PlanScreen() {
               <ChevronRight className="size-5" />
             </Button>
           </div>
+
+          <button
+            type="button"
+            onClick={handleAutoPlan}
+            disabled={planning}
+            className="glass edge-light pressable flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-primary transition-opacity disabled:opacity-60"
+          >
+            {planning ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Building your day…
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-4" /> Plan my day for me
+              </>
+            )}
+          </button>
 
           <Top3Card date={date} />
 

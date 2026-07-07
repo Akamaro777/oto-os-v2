@@ -14,14 +14,17 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { LineTrend } from '@/components/charts'
+import { CountUp } from '@/components/CountUp'
 import { PILLAR_META } from '@/lib/pillars'
 import { todayISO, tomorrowISO, dayHeaderLabel, daysBetween } from '@/lib/dates'
 import { getProfileNumber } from '@/store/profile'
+import { YearHeatmap } from '@/components/YearHeatmap'
 import {
   useBusinessHours,
   setBusinessHours,
   useBusinessSeries,
   useBusinessCumulative,
+  useBusinessHoursMap,
   useIdeas,
   addIdea,
   deleteIdea,
@@ -39,6 +42,7 @@ export function BusinessTracker() {
   const hours = useBusinessHours(date)
   const series = useBusinessSeries(7)
   const cumulative = useBusinessCumulative()
+  const hoursMap = useBusinessHoursMap()
   const ideas = useIdeas()
 
   const dailyTarget = getProfileNumber('bizTarget')
@@ -59,8 +63,8 @@ export function BusinessTracker() {
       <TrackerCard title="Hours worked">
         <div className="flex items-center justify-between">
           <div>
-            <span className="font-serif text-4xl" style={{ color: MONEY }}>
-              {hours}
+            <span className="font-serif text-4xl" style={{ color: MONEY, textShadow: `0 0 24px ${MONEY}44` }}>
+              <CountUp value={hours} format={(v) => (Math.round(v * 2) / 2).toString()} />
             </span>
             <span className="font-mono text-sm text-muted-foreground"> h · target {dailyTarget}/day</span>
           </div>
@@ -109,6 +113,10 @@ export function BusinessTracker() {
 
       <TrackerCard title="Hours — last 7 days">
         <LineTrend data={series} color={MONEY} unit="h" target={dailyTarget} height={150} />
+      </TrackerCard>
+
+      <TrackerCard title="Consistency">
+        <YearHeatmap data={hoursMap} color={MONEY} />
       </TrackerCard>
 
       <TrackerCard

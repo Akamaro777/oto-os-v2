@@ -62,6 +62,19 @@ export function useStudySeries(days = 7, anchor = todayISO()): { date: string; v
   }, [table, days, anchor])
 }
 
+/** date → study hours (falls back to time-on-problems), for the heatmap. */
+export function useStudyHoursMap(): Record<string, number> {
+  const table = useTable(T.cv, store) as Record<string, Cells>
+  return useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const [date, row] of Object.entries(table)) {
+      const h = Number(row.studyHours ?? 0) || Number(row.time ?? 0) / 60
+      if (h > 0) out[date] = h
+    }
+    return out
+  }, [table])
+}
+
 /* ── Mock exams ── */
 
 function rowToMock(id: string, row: Cells): MockExam {

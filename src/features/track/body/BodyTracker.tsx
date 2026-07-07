@@ -9,6 +9,7 @@ import { LineTrend, BarTotals } from '@/components/charts'
 import { todayISO } from '@/lib/dates'
 import { PILLAR_META } from '@/lib/pillars'
 import { getProfileNumber } from '@/store/profile'
+import { YearHeatmap } from '@/components/YearHeatmap'
 import {
   useBodyLog,
   setBodyNumber,
@@ -17,6 +18,7 @@ import {
   deleteMeal,
   mealTotals,
   useGymTotals,
+  useBodyActivityMap,
 } from '@/store/body'
 import { MealLoggerDialog } from './MealLoggerDialog'
 import { TrainingGrid } from './TrainingGrid'
@@ -32,6 +34,7 @@ export function BodyTracker() {
   const weightSeries = useBodySeries('weight')
   const sleepSeries = useBodySeries('sleep')
   const gymTotals = useGymTotals()
+  const activityMap = useBodyActivityMap()
 
   const totals = mealTotals(meals)
   const calTarget = getProfileNumber('calTarget')
@@ -103,6 +106,10 @@ export function BodyTracker() {
       {/* Training */}
       <TrackerCard title="This week's training">
         <TrainingGrid />
+      </TrackerCard>
+
+      <TrackerCard title="Consistency">
+        <YearHeatmap data={activityMap} color={BODY} />
       </TrackerCard>
 
       {/* Charts */}
