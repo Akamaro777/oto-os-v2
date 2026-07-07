@@ -52,14 +52,12 @@ export function BodyTracker() {
             label="Weight (kg)"
             value={log?.weight}
             onCommit={(v) => setBodyNumber(date, 'weight', v)}
-            step="0.1"
           />
           <NumberField
             id="body-sleep"
             label="Sleep (h)"
             value={log?.sleep}
             onCommit={(v) => setBodyNumber(date, 'sleep', v)}
-            step="0.5"
           />
         </div>
       </TrackerCard>
@@ -138,22 +136,22 @@ function NumberField({
   label,
   value,
   onCommit,
-  step,
 }: {
   id: string
   label: string
   value?: number
   onCommit: (v: string) => void
-  step?: string
 }) {
+  // type="text" (not "number") so EU keyboards' comma decimals are accepted;
+  // the store normalises ',' → '.' on commit.
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
       <Input
         id={id}
-        type="number"
+        type="text"
         inputMode="decimal"
-        step={step}
+        autoComplete="off"
         defaultValue={value ?? ''}
         key={`${id}-${value ?? ''}`}
         onBlur={(e) => onCommit(e.target.value)}

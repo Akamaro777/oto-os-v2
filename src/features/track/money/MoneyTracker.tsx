@@ -14,6 +14,7 @@ import {
 import { LineTrend } from '@/components/charts'
 import { CountUp } from '@/components/CountUp'
 import { PILLAR_META } from '@/lib/pillars'
+import { parseDecimal } from '@/lib/numbers'
 import { shortDate, todayISO } from '@/lib/dates'
 import { getProfileNumber } from '@/store/profile'
 import { getSetting } from '@/store/settings'
@@ -133,8 +134,8 @@ function ManualEntryDialog({
   const [date, setDate] = useState(todayISO())
 
   function handleAdd() {
-    const v = Number(value)
-    if (!v || v <= 0) {
+    const v = parseDecimal(value)
+    if (!v || Number.isNaN(v) || v <= 0) {
       toast.error('Enter a value')
       return
     }
@@ -155,8 +156,9 @@ function ManualEntryDialog({
             <Label htmlFor="pf-value">Value (€)</Label>
             <Input
               id="pf-value"
-              type="number"
+              type="text"
               inputMode="decimal"
+              autoComplete="off"
               autoFocus
               value={value}
               onChange={(e) => setValue(e.target.value)}

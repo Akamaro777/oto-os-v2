@@ -4,6 +4,7 @@ import { store } from './store'
 import { T, type BodyLog, type Meal, type GymWeek } from './schema'
 import { newId } from '@/lib/ids'
 import { isoWeekKey } from '@/lib/dates'
+import { parseDecimal } from '@/lib/numbers'
 
 type Cells = Record<string, string | number | boolean | undefined>
 
@@ -56,9 +57,9 @@ export function useBodyActivityMap(): Record<string, number> {
   }, [table])
 }
 
-/** Set (or clear when '') a numeric body field for a date. */
+/** Set (or clear when '') a numeric body field for a date. Accepts ',' or '.' decimals. */
 export function setBodyNumber(date: string, field: 'weight' | 'sleep' | 'water', value: string): void {
-  const num = Number(value)
+  const num = parseDecimal(value)
   if (value === '' || Number.isNaN(num)) store.delCell(T.body, date, field)
   else store.setCell(T.body, date, field, num)
 }
