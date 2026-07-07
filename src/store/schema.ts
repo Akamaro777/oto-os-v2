@@ -429,4 +429,6 @@ export const valuesSchema: ValuesSchema = {
   'settings.jbBinId': { type: 'string', default: '' },
   'settings.t212ProxyUrl': { type: 'string', default: '' },
   'settings.t212ProxySecret': { type: 'string', default: '' },
+  'settings.syncUrl': { type: 'string', default: '' },
+  'settings.syncSecret': { type: 'string', default: '' },
 }

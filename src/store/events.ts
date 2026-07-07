@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTable } from 'tinybase/ui-react'
 import { store } from './store'
 import { T, type CalendarEvent } from './schema'
+import { newId } from '@/lib/ids'
 
 type Cells = Record<string, string | number | boolean | undefined>
 
@@ -32,4 +33,42 @@ export function useEventsByDate(date: string): CalendarEvent[] {
         .sort((a, b) => (a.time ?? '').localeCompare(b.time ?? '')),
     [all, date],
   )
+}
+
+/* ── Mutations ── */
+
+export interface EventInput {
+  title: string
+  date: string
+  time?: string
+  category?: string
+  notes?: string
+}
+
+export function createEvent(input: EventInput): string {
+  const id = newId()
+  const row: Record<string, string | number> = {
+    title: input.title.trim(),
+    date: input.date,
+    ts: Date.now(),
+  }
+  if (input.time) row.time = input.time
+  if (input.category) row.category = input.category
+  if (input.notes?.trim()) row.notes = input.notes.trim()
+  store.setRow(T.events, id, row)
+  return id
+}
+
+export function updateEvent(id: string, patch: EventInput): void {
+  store.setCell(T.events, id, 'title', patch.title.trim())
+  store.setCell(T.events, id, 'date', patch.date)
+  for (const key of ['time', 'category', 'notes'] as const) {
+    const v = patch[key]
+    if (v && v.trim()) store.setCell(T.events, id, key, v.trim())
+    else store.delCell(T.events, id, key)
+  }
+}
+
+export function deleteEvent(id: string): void {
+  store.delRow(T.events, id)
 }

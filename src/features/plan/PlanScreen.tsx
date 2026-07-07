@@ -12,9 +12,10 @@ import { type Block } from '@/store/schema'
 import { DayTimeline } from './DayTimeline'
 import { Top3Card } from './Top3Card'
 import { BlockDialog } from './BlockDialog'
+import { CalendarView } from './CalendarView'
 import { TasksView } from '@/features/tasks/TasksView'
 
-type PlanTab = 'timeline' | 'tasks'
+type PlanTab = 'timeline' | 'tasks' | 'calendar'
 
 export function PlanScreen() {
   const [date, setDate] = useState(todayISO())
@@ -64,26 +65,34 @@ export function PlanScreen() {
   return (
     <Screen
       title="Plan"
-      subtitle={view === 'timeline' ? dayHeaderLabel(date) : 'everything on your plate'}
+      subtitle={
+        view === 'timeline'
+          ? dayHeaderLabel(date)
+          : view === 'tasks'
+            ? 'everything on your plate'
+            : 'calendar & events'
+      }
       action={
-        <div className="flex gap-2">
-          <Button
-            size="icon"
-            className="glow-primary rounded-full"
-            onClick={() => setVoiceOpen(true)}
-            aria-label="Plan by voice"
-          >
-            <Mic className="size-5" />
-          </Button>
-          <Button size="icon" variant="secondary" className="rounded-full" onClick={handleAdd}>
-            <Plus className="size-5" />
-          </Button>
-        </div>
+        view !== 'calendar' ? (
+          <div className="flex gap-2">
+            <Button
+              size="icon"
+              className="glow-primary rounded-full"
+              onClick={() => setVoiceOpen(true)}
+              aria-label="Plan by voice"
+            >
+              <Mic className="size-5" />
+            </Button>
+            <Button size="icon" variant="secondary" className="rounded-full" onClick={handleAdd}>
+              <Plus className="size-5" />
+            </Button>
+          </div>
+        ) : undefined
       }
     >
       {/* View switch */}
       <div className="mb-4 flex gap-1 rounded-lg bg-secondary p-1">
-        {(['timeline', 'tasks'] as const).map((v) => (
+        {(['timeline', 'tasks', 'calendar'] as const).map((v) => (
           <button
             key={v}
             type="button"
@@ -157,8 +166,10 @@ export function PlanScreen() {
             defaultStart={defaultStart}
           />
         </div>
-      ) : (
+      ) : view === 'tasks' ? (
         <TasksView createOpen={taskCreateOpen} onCreateOpenChange={setTaskCreateOpen} />
+      ) : (
+        <CalendarView />
       )}
 
       <VoiceDialog

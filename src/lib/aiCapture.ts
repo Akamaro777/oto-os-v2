@@ -208,6 +208,36 @@ Return ONLY JSON: {"name": string, "met": string (how/where met, short), "cadenc
   return `${name} added to People`
 }
 
+/* ── New calendar event(s) ── */
+
+export async function captureEvents(text: string): Promise<string> {
+  const today = todayISO()
+  const system = `You turn spoken plans into calendar events. Today is ${today}.
+Return ONLY JSON: {"events": [{"title": string, "date": "YYYY-MM-DD", "time": "HH:MM" or "", "category": "cv"|"work"|"study"|"body"|"social"|"money"|"personal", "notes": string}]}.
+Resolve relative dates ("next Tuesday") from today. No prose.`
+  const data = await extract(system, text)
+  const { createEvent } = await import('@/store/events')
+  let count = 0
+  let firstTitle = ''
+  for (const e of arr(data.events)) {
+    const o = e as Record<string, unknown>
+    const title = str(o.title)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(str(o.date)) ? str(o.date) : ''
+    if (!title || !date) continue
+    createEvent({
+      title,
+      date,
+      time: /^\d{2}:\d{2}$/.test(str(o.time)) ? str(o.time) : '',
+      category: str(o.category) || 'personal',
+      notes: str(o.notes),
+    })
+    if (!count) firstTitle = title
+    count++
+  }
+  if (!count) throw new AnthropicError('No event detected — say what and when.')
+  return count === 1 ? `Event added: ${firstTitle}` : `${count} events added`
+}
+
 /* ── Log my day (trackers) ── */
 
 export async function captureDailyLog(text: string, date: string): Promise<string> {

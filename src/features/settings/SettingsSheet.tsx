@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label'
 import { getSetting, setSetting } from '@/store/settings'
 import { importV1 } from '@/lib/importV1'
 import { exportBackup } from '@/lib/exportData'
+import { pull as syncPull } from '@/lib/sync'
+import { pushSupported, isPushEnabled, enablePush, disablePush } from '@/lib/push'
 import { toast } from 'sonner'
 
 interface SettingsSheetProps {
@@ -18,7 +20,30 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
   const [apiKey, setApiKey] = useState('')
   const [proxyUrl, setProxyUrl] = useState('')
   const [proxySecret, setProxySecret] = useState('')
+  const [syncUrl, setSyncUrl] = useState('')
+  const [syncSecret, setSyncSecret] = useState('')
+  const [pushOn, setPushOn] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  async function handleTogglePush() {
+    setPushBusy(true)
+    try {
+      if (pushOn) {
+        await disablePush()
+        setPushOn(false)
+        toast('Notifications off')
+      } else {
+        await enablePush()
+        setPushOn(true)
+        toast.success('Notifications on — briefing 7:00, check-in 21:30')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Notification setup failed')
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   async function handleImport(file: File) {
     try {
@@ -40,12 +65,21 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
     setApiKey(getSetting('apiKey'))
     setProxyUrl(getSetting('t212ProxyUrl'))
     setProxySecret(getSetting('t212ProxySecret'))
+    setSyncUrl(getSetting('syncUrl'))
+    setSyncSecret(getSetting('syncSecret'))
+    isPushEnabled().then(setPushOn).catch(() => setPushOn(false))
   }, [open])
 
   function handleSave() {
     setSetting('apiKey', apiKey.trim())
     setSetting('t212ProxyUrl', proxyUrl.trim())
     setSetting('t212ProxySecret', proxySecret.trim())
+    const hadSync = getSetting('syncUrl').length > 0
+    setSetting('syncUrl', syncUrl.trim())
+    setSetting('syncSecret', syncSecret.trim())
+    if (!hadSync && syncUrl.trim()) {
+      syncPull().then((applied) => applied && toast.success('Synced from your other device'))
+    }
     toast.success('Settings saved')
     onOpenChange(false)
   }
@@ -94,6 +128,46 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
               onChange={(e) => setProxySecret(e.target.value)}
               autoComplete="off"
             />
+          </div>
+
+          <div className="space-y-4 border-t border-border pt-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="set-sync-url">Sync URL</Label>
+              <Input
+                id="set-sync-url"
+                value={syncUrl}
+                onChange={(e) => setSyncUrl(e.target.value)}
+                placeholder="https://oto-sync.….workers.dev"
+                inputMode="url"
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="set-sync-secret">Sync secret</Label>
+              <Input
+                id="set-sync-secret"
+                type="password"
+                value={syncSecret}
+                onChange={(e) => setSyncSecret(e.target.value)}
+                autoComplete="off"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Mirrors your data across devices via your own Cloudflare Worker (see repo → workers/).
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={pushBusy || !syncUrl.trim()}
+              onClick={handleTogglePush}
+            >
+              {pushOn ? 'Disable notifications' : 'Enable notifications'}
+            </Button>
+            {!pushSupported() && (
+              <p className="text-[11px] text-muted-foreground">
+                Notifications need the installed home-screen app (iOS 16.4+).
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5 border-t border-border pt-4">

@@ -1,9 +1,12 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { toast } from 'sonner'
 import type { TabId } from '@/lib/nav'
 import { BottomNav } from '@/components/BottomNav'
 import { Ambient } from '@/components/Ambient'
 import { Toaster } from '@/components/ui/sonner'
+import { maybeAutoSyncT212 } from '@/store/portfolio'
+import { startSync } from '@/lib/sync'
 
 // Code-split each screen so the initial load stays lean (recharts/motion only
 // download when Track/Mentor are first opened).
@@ -38,6 +41,15 @@ const SCREENS: Record<TabId, React.LazyExoticComponent<() => React.JSX.Element>>
 export default function App() {
   const [tab, setTab] = useState<TabId>('today')
   const ActiveScreen = SCREENS[tab]
+
+  useEffect(() => {
+    // D4: silent portfolio refresh when the app opens
+    maybeAutoSyncT212().then((total) => {
+      if (total != null) toast.success(`Portfolio synced: €${Math.round(total).toLocaleString('en-US')}`)
+    })
+    // D1: cross-device sync (no-op until configured in Settings)
+    startSync()
+  }, [])
 
   return (
     <div className="min-h-dvh text-foreground">

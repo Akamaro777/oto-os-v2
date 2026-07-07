@@ -74,3 +74,39 @@ export function addPortfolioFromT212(summary: T212Summary): string {
 export function deletePortfolioEntry(id: string): void {
   store.delRow(T.portfolio, id)
 }
+
+/* ── Auto-sync ── */
+
+const AUTO_SYNC_MIN_GAP_MS = 6 * 60 * 60 * 1000 // at most every 6h
+let autoSyncInFlight = false
+
+/**
+ * Silently refresh the portfolio from the T212 proxy when the app opens,
+ * if configured and the last synced entry is stale. Returns the new total
+ * (for an optional toast) or null when skipped/failed.
+ */
+export async function maybeAutoSyncT212(): Promise<number | null> {
+  if (autoSyncInFlight) return null
+  const url = String(store.getValue('settings.t212ProxyUrl') ?? '')
+  const secret = String(store.getValue('settings.t212ProxySecret') ?? '')
+  if (!url || !secret) return null
+
+  const table = store.getTable(T.portfolio)
+  let lastT212 = 0
+  for (const row of Object.values(table)) {
+    if (row.source === 't212') lastT212 = Math.max(lastT212, Number(row.ts ?? 0))
+  }
+  if (Date.now() - lastT212 < AUTO_SYNC_MIN_GAP_MS) return null
+
+  autoSyncInFlight = true
+  try {
+    const { fetchT212Summary } = await import('@/lib/t212')
+    const summary = await fetchT212Summary(url, secret)
+    addPortfolioFromT212(summary)
+    return summary.total
+  } catch {
+    return null // silent — manual sync still shows errors
+  } finally {
+    autoSyncInFlight = false
+  }
+}

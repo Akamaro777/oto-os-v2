@@ -8,6 +8,8 @@ export type SettingKey =
   | 'jbBinId'
   | 't212ProxyUrl'
   | 't212ProxySecret'
+  | 'syncUrl'
+  | 'syncSecret'
 
 export function getSetting(key: SettingKey): string {
   return String(store.getValue(`settings.${key}`) ?? '')

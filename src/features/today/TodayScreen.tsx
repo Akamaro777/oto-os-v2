@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { PILLAR_META, pillarColor } from '@/lib/pillars'
 import { todayISO, relativeDueLabel, parseHM } from '@/lib/dates'
 import { reconnectDue, birthdaySoon } from '@/lib/people'
+import { useDeviceTilt, requestTiltPermission } from '@/lib/tilt'
 import { getProfileString } from '@/store/profile'
 import { useNorthStars, type NorthStar, type GoalStatus } from '@/store/northStars'
 import { useBriefing } from '@/store/briefing'
@@ -52,6 +53,7 @@ export function TodayScreen() {
   }, [])
 
   const { now, next } = useMemo(() => computeNowNext(blocks, nowMin), [blocks, nowMin])
+  const tilt = useDeviceTilt()
 
   const dueToday = useMemo(
     () => sortTasks(filterTasks(tasks, 'today', today)),
@@ -79,7 +81,11 @@ export function TodayScreen() {
 
         {/* North Stars */}
         <StaggerItem>
-        <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+        <div
+          className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1"
+          style={{ perspective: 700 }}
+          onPointerDown={() => requestTiltPermission()}
+        >
           {stars.map((s) => {
             const color = pillarColor(s.pillar)
             return (
@@ -89,6 +95,10 @@ export function TodayScreen() {
                 onClick={() => setDetail(s)}
                 aria-label={`${s.label} details`}
                 className="glass edge-light pressable flex w-40 shrink-0 flex-col items-center gap-2 rounded-2xl p-4"
+                style={{
+                  transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
+                  transition: 'transform 0.2s ease-out',
+                }}
               >
                 <ProgressRing pct={s.pct} markerPct={s.expectedPct} color={color} size={76}>
                   <span className="font-mono text-sm font-semibold">{Math.round(s.pct)}%</span>

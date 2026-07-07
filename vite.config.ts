@@ -16,6 +16,10 @@ export default defineConfig(({ command }) => ({
     react(),
     tailwindcss(),
     VitePWA({
+      // Custom SW (src/sw.ts): precaching + Web Push handlers
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -32,10 +36,8 @@ export default defineConfig(({ command }) => ({
           { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'],
-        // Anthropic + T212 calls must always hit the network, never the cache.
-        navigateFallbackDenylist: [/^\/api/],
       },
     }),
   ],

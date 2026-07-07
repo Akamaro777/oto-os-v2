@@ -1,0 +1,22 @@
+name = "oto-sync"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Create with:  npx wrangler kv namespace create OTO
+# then paste the printed id below.
+kv_namespaces = [
+  { binding = "OTO", id = "PASTE_KV_NAMESPACE_ID_HERE" }
+]
+
+# 05:00 UTC = 07:00 CEST (morning briefing) · 19:30 UTC = 21:30 CEST (evening check-in)
+[triggers]
+crons = ["0 5 * * *", "30 19 * * *"]
+
+[vars]
+VAPID_SUBJECT = "mailto:ozolins.oto@gmail.com"
+ALLOWED_ORIGIN = "https://akamaro777.github.io"
+
+# Secrets (set via CLI, never commit values):
+#   npx wrangler secret put SYNC_SECRET
+#   npx wrangler secret put VAPID_PUBLIC_KEY
+#   npx wrangler secret put VAPID_PRIVATE_JWK
