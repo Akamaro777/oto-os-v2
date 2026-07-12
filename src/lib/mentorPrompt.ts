@@ -25,12 +25,6 @@ export function buildSystemPrompt(): string {
   const money = (store.getRow(T.money, td) ?? {}) as Row
   const cv = (store.getRow(T.cv, td) ?? {}) as Row
 
-  // Today's meals
-  const mealsTable = store.getTable(T.meals) as Record<string, Row>
-  const todaysMeals = Object.values(mealsTable).filter((m) => m.date === td)
-  const cal = todaysMeals.reduce((x, m) => x + num(m.cal), 0)
-  const prot = todaysMeals.reduce((x, m) => x + num(m.prot), 0)
-
   // 7-day stats
   const week = last7(td)
   const moneyTable = store.getTable(T.money) as Record<string, Row>
@@ -92,10 +86,10 @@ CONTEXT:
 
 PROFILE:
 - Name: ${p('name')} | Current weight: ${p('weight')}kg -> target ${p('targetWeight')}kg
-- Daily targets: ${p('calTarget')} cal, ${p('protTarget')}g protein, ${p('bizTarget')}h business, ${p('studyTarget')}h study
+- Daily targets: ${p('bizTarget')}h business, ${p('studyTarget')}h study
 
 TODAY (${td}):
-- Body: ${body.weight ? body.weight + 'kg' : 'no weight'}, ${cal}/${p('calTarget')} cal, ${prot}g/${p('protTarget')}g protein, gym ${body.gym ? 'yes' : 'no'}
+- Body: ${body.weight ? body.weight + 'kg' : 'no weight'}, sleep ${body.sleep ? body.sleep + 'h' : '-'}, gym ${body.gym ? 'yes' : 'no'}
 - Social: rating ${social.rating ?? '-'}/10, ${num(social.approaches)} approaches, ${num(social.compliments)} compliments, ${num(social.connections)} connections
 - Money: ${num(money.hours).toFixed(1)}h on business
 - CV: ${num(cv.studyHours).toFixed(1)}h study, ${num(cv.problems)} GMAT problems${num(cv.problems) > 0 ? ', ' + Math.round((num(cv.correct) / num(cv.problems)) * 100) + '% acc' : ''}

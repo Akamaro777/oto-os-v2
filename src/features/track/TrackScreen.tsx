@@ -89,8 +89,8 @@ export function TrackScreen() {
         open={voiceOpen}
         onOpenChange={setVoiceOpen}
         title="Log your day"
-        hint="Say it all at once — weight, sleep, food, hours, day rating"
-        placeholder="e.g. Weighed 68.4, slept 7 and a half, had eggs and salmon then chicken with rice, 3 hours GMAT, 2 hours on the business, day was an 8…"
+        hint="Say it all at once — weight, sleep, hours, day rating"
+        placeholder="e.g. Weighed 68.4, slept 7 and a half, 3 hours GMAT, 2 hours on the business, day was an 8…"
         process={(text) => captureDailyLog(text, todayISO())}
       />
     </Screen>

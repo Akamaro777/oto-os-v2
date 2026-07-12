@@ -22,7 +22,7 @@ function notificationForNow(payload?: string): { title: string; body: string } {
   if (payload) return { title: 'oto.os', body: payload }
   const h = new Date().getHours()
   if (h < 12)
-    return { title: 'Your briefing is ready', body: 'Open oto.os — see your pace and the highest-leverage move today.' }
+    return { title: 'Plan your day', body: 'Open oto.os — set your Top 3 and your first block.' }
   if (h >= 17)
     return { title: 'Close your rings', body: '30-second check-in: log the day, rate it, set tomorrow’s #1.' }
   return { title: 'oto.os', body: 'Quick check-in — how is the day tracking?' }

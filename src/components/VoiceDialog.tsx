@@ -35,7 +35,10 @@ export function VoiceDialog({ open, onOpenChange, title, hint, placeholder, proc
   }, [speech.transcript])
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      speech.stop() // otherwise the auto-restarting mic outlives the dialog
+      return
+    }
     setText('')
     setBusy(false)
     speech.reset()

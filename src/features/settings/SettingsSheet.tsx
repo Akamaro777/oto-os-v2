@@ -36,7 +36,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
       } else {
         await enablePush()
         setPushOn(true)
-        toast.success('Notifications on — briefing 7:00, check-in 21:30')
+        toast.success('Notifications on — morning 7:00, check-in 21:30')
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Notification setup failed')
@@ -103,7 +103,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
               autoComplete="off"
             />
             <p className="text-[11px] text-muted-foreground">
-              Powers the AI meal logger and Mentor. Stored only on this device.
+              Powers the AI voice capture and Mentor. Stored only on this device.
             </p>
           </div>
 

@@ -113,15 +113,6 @@ export interface BodyLog {
   cardioMin?: number
 }
 
-export interface Meal {
-  id: string
-  date: string // YYYY-MM-DD
-  name: string
-  cal: number
-  prot: number
-  ts: number
-}
-
 /** Daily social log (rowId = YYYY-MM-DD). */
 export interface SocialLog {
   date: string
@@ -219,7 +210,6 @@ export const T = {
   events: 'events',
   mockExams: 'mockExams',
   body: 'body',
-  meals: 'meals',
   social: 'social',
   money: 'money',
   cv: 'cv',
@@ -312,13 +302,6 @@ export const tablesSchema: TablesSchema = {
     cardioKm: { type: 'number' },
     cardioMin: { type: 'number' },
   },
-  meals: {
-    date: { type: 'string' },
-    name: { type: 'string' },
-    cal: { type: 'number', default: 0 },
-    prot: { type: 'number', default: 0 },
-    ts: { type: 'number' },
-  },
   social: {
     rating: { type: 'number' },
     approaches: { type: 'number' },
@@ -389,8 +372,6 @@ export const valuesSchema: ValuesSchema = {
   'profile.name': { type: 'string', default: 'Oto' },
   'profile.weight': { type: 'number', default: 74 },
   'profile.targetWeight': { type: 'number', default: 79 },
-  'profile.calTarget': { type: 'number', default: 2000 },
-  'profile.protTarget': { type: 'number', default: 200 },
   'profile.bizTarget': { type: 'number', default: 4 },
   'profile.studyTarget': { type: 'number', default: 4 },
   'profile.bulkTargetWeight': { type: 'number', default: 75 },
@@ -419,9 +400,6 @@ export const valuesSchema: ValuesSchema = {
   'profile.socialDailyApproaches': { type: 'number', default: 1 },
   'profile.socialDailyCompliments': { type: 'number', default: 1 },
   'profile.socialDailyConnections': { type: 'number', default: 1 },
-  // App state — cached AI morning briefing (regenerated daily)
-  'app.briefingDate': { type: 'string', default: '' },
-  'app.briefingText': { type: 'string', default: '' },
   // Settings — secrets live here at runtime only (never committed)
   'settings.theme': { type: 'string', default: 'dark' },
   'settings.apiKey': { type: 'string', default: '' },

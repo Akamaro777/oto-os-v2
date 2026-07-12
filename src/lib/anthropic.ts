@@ -8,7 +8,7 @@ const API_URL = 'https://api.anthropic.com/v1/messages'
 const ANTHROPIC_VERSION = '2023-06-01'
 
 export const MODELS = {
-  /** Fast, cheap — meal macro extraction, event capture. */
+  /** Fast, cheap — voice capture extraction. */
   haiku: 'claude-haiku-4-5-20251001',
   /** Mentor chat — strong reasoning. */
   sonnet: 'claude-sonnet-4-6',
@@ -64,50 +64,4 @@ export async function callMessages(
     .map((b) => b.text ?? '')
     .join('')
     .trim()
-}
-
-export interface ExtractedMeal {
-  name: string
-  cal: number
-  prot: number
-}
-
-const MEAL_SYSTEM = `You are a nutrition macro estimator. The user describes food they ate.
-Return ONLY a JSON array of items, no prose, no markdown fences. Each item:
-{"name": string, "cal": number (kcal), "prot": number (grams protein)}.
-Split distinct dishes into separate items. Estimate realistic values for the described portions.`
-
-/** Extract meal items with estimated calories/protein from free text. */
-export async function extractMeals(apiKey: string, text: string): Promise<ExtractedMeal[]> {
-  const raw = await callMessages(apiKey, {
-    model: MODELS.haiku,
-    maxTokens: 1024,
-    system: MEAL_SYSTEM,
-    messages: [{ role: 'user', content: text }],
-  })
-  return parseMealJson(raw)
-}
-
-/** Tolerant JSON parse: strips fences and pulls the first array found. */
-export function parseMealJson(raw: string): ExtractedMeal[] {
-  let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
-  const start = s.indexOf('[')
-  const end = s.lastIndexOf(']')
-  if (start !== -1 && end !== -1) s = s.slice(start, end + 1)
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(s)
-  } catch {
-    throw new AnthropicError('Could not parse the AI response.')
-  }
-  if (!Array.isArray(parsed)) throw new AnthropicError('AI response was not a list.')
-  return parsed
-    .map((item): ExtractedMeal | null => {
-      if (typeof item !== 'object' || item == null) return null
-      const o = item as Record<string, unknown>
-      const name = typeof o.name === 'string' ? o.name : ''
-      if (!name) return null
-      return { name, cal: Math.round(Number(o.cal) || 0), prot: Math.round(Number(o.prot) || 0) }
-    })
-    .filter((m): m is ExtractedMeal => m != null)
 }

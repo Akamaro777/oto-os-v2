@@ -3,10 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 /* Minimal Web Speech API typings (not in lib.dom for all TS configs) */
 interface SpeechResultAlternative {
   transcript: string
+  confidence?: number
 }
 interface SpeechResult {
   isFinal: boolean
-  0: SpeechResultAlternative
+  length: number
+  [i: number]: SpeechResultAlternative
 }
 interface SpeechRecognitionEventLike {
   resultIndex: number
@@ -16,6 +18,7 @@ interface SpeechRecognitionLike {
   lang: string
   continuous: boolean
   interimResults: boolean
+  maxAlternatives: number
   start(): void
   stop(): void
   abort(): void
@@ -29,6 +32,16 @@ function getRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
   return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as
     | (new () => SpeechRecognitionLike)
     | null
+}
+
+/** Best alternative by confidence (engines usually order them, but not always). */
+function bestAlternative(res: SpeechResult): string {
+  let best = res[0]
+  for (let i = 1; i < res.length; i++) {
+    const alt = res[i]
+    if (alt && (alt.confidence ?? 0) > (best.confidence ?? 0)) best = alt
+  }
+  return best?.transcript ?? ''
 }
 
 export interface SpeechState {
@@ -45,7 +58,15 @@ export interface SpeechState {
   reset: () => void
 }
 
-/** Push-to-talk speech recognition. Accumulates finalised text across pauses. */
+/**
+ * Push-to-talk speech recognition. Accumulates finalised text across pauses.
+ *
+ * Mobile engines end a session after a short silence, which used to cut the
+ * capture off mid-thought — so while the user hasn't tapped stop, a session
+ * that ends on its own is transparently restarted and the transcript keeps
+ * accumulating. Also picks the highest-confidence alternative per result and
+ * drops the duplicated finals some Android builds emit.
+ */
 export function useSpeech(lang = 'en-US'): SpeechState {
   const [supported] = useState(() => getRecognitionCtor() != null)
   const [listening, setListening] = useState(false)
@@ -53,8 +74,14 @@ export function useSpeech(lang = 'en-US'): SpeechState {
   const [interim, setInterim] = useState('')
   const [error, setError] = useState<string | null>(null)
   const recRef = useRef<SpeechRecognitionLike | null>(null)
+  /** True while the user wants the mic open — drives silent auto-restarts. */
+  const keepAliveRef = useRef(false)
+  const lastFinalRef = useRef('')
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const stop = useCallback(() => {
+    keepAliveRef.current = false
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
     recRef.current?.stop()
     setListening(false)
     setInterim('')
@@ -64,47 +91,86 @@ export function useSpeech(lang = 'en-US'): SpeechState {
     const Ctor = getRecognitionCtor()
     if (!Ctor) return
     setError(null)
-    const rec = new Ctor()
-    rec.lang = lang
-    rec.continuous = true
-    rec.interimResults = true
-    rec.onresult = (e) => {
-      let interimText = ''
-      let finalText = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const res = e.results[i]
-        if (res.isFinal) finalText += res[0].transcript
-        else interimText += res[0].transcript
+    keepAliveRef.current = true
+    lastFinalRef.current = ''
+
+    const spinUp = () => {
+      const rec = new Ctor()
+      rec.lang = lang
+      rec.continuous = true
+      rec.interimResults = true
+      rec.maxAlternatives = 3
+      rec.onresult = (e) => {
+        let interimText = ''
+        let finalText = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i]
+          if (res.isFinal) {
+            const chunk = bestAlternative(res).trim()
+            // Some Android builds re-emit the previous final result — drop it.
+            if (chunk && chunk !== lastFinalRef.current) {
+              finalText += (finalText ? ' ' : '') + chunk
+              lastFinalRef.current = chunk
+            }
+          } else {
+            interimText += res[0]?.transcript ?? ''
+          }
+        }
+        if (finalText) setTranscript((prev) => (prev ? prev + ' ' : '') + finalText)
+        setInterim(interimText)
       }
-      if (finalText) setTranscript((prev) => (prev ? prev + ' ' : '') + finalText.trim())
-      setInterim(interimText)
+      rec.onerror = (e) => {
+        // no-speech / aborted are routine pauses; onend handles the restart.
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          keepAliveRef.current = false
+          setError('Microphone permission denied')
+          setListening(false)
+        } else if (e.error === 'network') {
+          keepAliveRef.current = false
+          setError('Speech service unreachable — check your connection')
+          setListening(false)
+        }
+      }
+      rec.onend = () => {
+        setInterim('')
+        if (keepAliveRef.current) {
+          // The engine gave up after a silence — reopen with a fresh session.
+          restartTimerRef.current = setTimeout(() => {
+            if (keepAliveRef.current) spinUp()
+          }, 100)
+        } else {
+          setListening(false)
+        }
+      }
+      recRef.current = rec
+      try {
+        rec.start()
+        setListening(true)
+      } catch {
+        keepAliveRef.current = false
+        setError('Could not start the microphone')
+        setListening(false)
+      }
     }
-    rec.onerror = (e) => {
-      if (e.error === 'not-allowed') setError('Microphone permission denied')
-      else if (e.error && e.error !== 'aborted' && e.error !== 'no-speech')
-        setError(`Speech error: ${e.error}`)
-      setListening(false)
-    }
-    rec.onend = () => {
-      setListening(false)
-      setInterim('')
-    }
-    recRef.current = rec
-    try {
-      rec.start()
-      setListening(true)
-    } catch {
-      setError('Could not start the microphone')
-    }
+
+    spinUp()
   }, [lang])
 
   const reset = useCallback(() => {
     setTranscript('')
     setInterim('')
     setError(null)
+    lastFinalRef.current = ''
   }, [])
 
-  useEffect(() => () => recRef.current?.abort(), [])
+  useEffect(
+    () => () => {
+      keepAliveRef.current = false
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
+      recRef.current?.abort()
+    },
+    [],
+  )
 
   return { supported, listening, transcript, interim, error, start, stop, reset }
 }

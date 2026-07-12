@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 import { useTable } from 'tinybase/ui-react'
 import { store } from './store'
-import { T, type BodyLog, type Meal, type GymWeek } from './schema'
-import { newId } from '@/lib/ids'
+import { T, type BodyLog, type GymWeek } from './schema'
 import { isoWeekKey } from '@/lib/dates'
 import { parseDecimal } from '@/lib/numbers'
 
@@ -62,64 +61,6 @@ export function setBodyNumber(date: string, field: 'weight' | 'sleep' | 'water',
   const num = parseDecimal(value)
   if (value === '' || Number.isNaN(num)) store.delCell(T.body, date, field)
   else store.setCell(T.body, date, field, num)
-}
-
-/* ── Meals (rowId = mealId, filtered by date) ── */
-
-function rowToMeal(id: string, row: Cells): Meal {
-  return {
-    id,
-    date: String(row.date ?? ''),
-    name: String(row.name ?? ''),
-    cal: Number(row.cal ?? 0),
-    prot: Number(row.prot ?? 0),
-    ts: Number(row.ts ?? 0),
-  }
-}
-
-export function useMealsByDate(date: string): Meal[] {
-  const table = useTable(T.meals, store) as Record<string, Cells>
-  return useMemo(
-    () =>
-      Object.entries(table)
-        .map(([id, row]) => rowToMeal(id, row))
-        .filter((m) => m.date === date)
-        .sort((a, b) => a.ts - b.ts),
-    [table, date],
-  )
-}
-
-export interface MealInput {
-  name: string
-  cal: number
-  prot: number
-}
-
-export function addMeal(date: string, input: MealInput): string {
-  const id = newId()
-  store.setRow(T.meals, id, {
-    date,
-    name: input.name.trim(),
-    cal: Math.round(input.cal) || 0,
-    prot: Math.round(input.prot) || 0,
-    ts: Date.now(),
-  })
-  return id
-}
-
-export function addMeals(date: string, inputs: MealInput[]): void {
-  for (const input of inputs) addMeal(date, input)
-}
-
-export function deleteMeal(id: string): void {
-  store.delRow(T.meals, id)
-}
-
-export function mealTotals(meals: Meal[]): { cal: number; prot: number } {
-  return meals.reduce(
-    (acc, m) => ({ cal: acc.cal + m.cal, prot: acc.prot + m.prot }),
-    { cal: 0, prot: 0 },
-  )
 }
 
 /* ── Weekly training grid (rowId = 'YYYY-Www') ── */

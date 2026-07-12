@@ -12,7 +12,7 @@ import { createTask } from '@/store/tasks'
 import { createBlock, setTop3 } from '@/store/planner'
 import { createProject, type ProjectInput } from '@/store/projects'
 import { createContact, type ContactInput } from '@/store/people'
-import { setBodyNumber, addMeals, type MealInput } from '@/store/body'
+import { setBodyNumber } from '@/store/body'
 import { setBusinessHours } from '@/store/business'
 import { setStudyHours } from '@/store/study'
 import { setSocialRating } from '@/store/social'
@@ -20,13 +20,16 @@ import type { Priority, ProjectStatus } from '@/store/schema'
 
 const PILLAR_HINT = `"category" must be one of: body, social, money, cv, personal.`
 
+/** Prepended to every capture prompt — the input is speech-to-text, not typed prose. */
+const TRANSCRIPT_HINT = `The user input is a raw speech-to-text transcript: expect mis-heard words, missing punctuation, run-on numbers and filler words. Infer the intended meaning from context (e.g. "way 74" = weight 74, "for our steady" = 4h study) rather than taking odd words literally.`
+
 async function extract(system: string, text: string): Promise<Record<string, unknown>> {
   const key = getSetting('apiKey')
   if (!key) throw new AnthropicError('Add your Anthropic API key in Settings first.')
   const raw = await callMessages(key, {
     model: MODELS.haiku,
     maxTokens: 1500,
-    system,
+    system: `${TRANSCRIPT_HINT}\n${system}`,
     messages: [{ role: 'user', content: text }],
   })
   let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
@@ -244,7 +247,6 @@ export async function captureDailyLog(text: string, date: string): Promise<strin
   const system = `You turn a spoken daily check-in into tracker values. Extract ONLY what is explicitly mentioned.
 Return ONLY JSON (omit or null anything not mentioned):
 {"weight": number|null (kg), "sleep": number|null (hours),
-"meals": [{"name": string, "cal": number, "prot": number}] (estimate realistic macros for described food; [] if none),
 "businessHours": number|null (hours worked on business), "studyHours": number|null (GMAT/study hours),
 "rating": number|null (1-10 day rating)}. No prose.`
   const data = await extract(system, text)
@@ -259,18 +261,6 @@ Return ONLY JSON (omit or null anything not mentioned):
   if (sleep && sleep > 0 && sleep <= 16) {
     setBodyNumber(date, 'sleep', String(sleep))
     parts.push(`${sleep}h sleep`)
-  }
-  const meals = arr(data.meals)
-    .map((m) => {
-      const o = m as Record<string, unknown>
-      const name = str(o.name)
-      if (!name) return null
-      return { name, cal: num(o.cal) ?? 0, prot: num(o.prot) ?? 0 } satisfies MealInput
-    })
-    .filter((m): m is MealInput => m != null)
-  if (meals.length) {
-    addMeals(date, meals)
-    parts.push(`${meals.length} meal${meals.length > 1 ? 's' : ''}`)
   }
   const biz = num(data.businessHours)
   if (biz != null && biz > 0 && biz <= 24) {
@@ -289,7 +279,7 @@ Return ONLY JSON (omit or null anything not mentioned):
   }
 
   if (!parts.length)
-    throw new AnthropicError('Nothing loggable detected — mention weight, sleep, food, hours or a rating.')
+    throw new AnthropicError('Nothing loggable detected — mention weight, sleep, hours or a rating.')
   return `Logged: ${parts.join(' · ')}`
 }
 

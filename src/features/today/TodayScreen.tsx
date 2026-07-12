@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
-import { Circle, Clock, ArrowRight, ListChecks, Users, Cake, Sparkles, RefreshCw } from 'lucide-react'
+import { Circle, Clock, ArrowRight, ListChecks, Users, Cake } from 'lucide-react'
 import { Screen, Stagger, StaggerItem } from '@/components/Screen'
 import { TrackerCard } from '@/components/TrackerCard'
 import { ProgressRing } from '@/components/ProgressRing'
@@ -11,7 +11,6 @@ import { reconnectDue, birthdaySoon } from '@/lib/people'
 import { useDeviceTilt, requestTiltPermission } from '@/lib/tilt'
 import { getProfileString } from '@/store/profile'
 import { useNorthStars, type NorthStar, type GoalStatus } from '@/store/northStars'
-import { useBriefing } from '@/store/briefing'
 import { useBlocksByDate, computeNowNext, useTop3 } from '@/store/planner'
 import { useAllTasks, filterTasks, sortTasks } from '@/store/tasks'
 import { useAllContacts } from '@/store/people'
@@ -74,11 +73,6 @@ export function TodayScreen() {
       subtitle={`${getProfileString('name') || 'oto.os'} · ${format(new Date(), 'EEEE, MMM d')}`}
     >
       <Stagger className="space-y-4">
-        {/* AI morning briefing */}
-        <StaggerItem>
-          <BriefingCard />
-        </StaggerItem>
-
         {/* North Stars */}
         <StaggerItem>
         <div
@@ -209,60 +203,13 @@ export function TodayScreen() {
         {stars.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
             <ListChecks className="size-8" />
-            <p className="text-sm">Log some data and your briefing fills in.</p>
+            <p className="text-sm">Log some data and Today fills in.</p>
           </div>
         )}
       </Stagger>
 
       <GoalDetailSheet star={detail} onClose={() => setDetail(null)} />
     </Screen>
-  )
-}
-
-/** AI morning briefing — auto-generates once per day when a key is set. */
-function BriefingCard() {
-  const briefing = useBriefing()
-
-  useEffect(() => {
-    if (briefing.stale && !briefing.generating) {
-      briefing.generate().catch(() => {
-        /* silent — the card just stays in its hint state */
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [briefing.stale])
-
-  if (!briefing.text && !briefing.generating && !briefing.stale) return null
-
-  return (
-    <section
-      className="glass edge-light rounded-2xl p-4"
-      style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 0 32px rgba(201,241,88,0.05)' }}
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-primary">
-          <Sparkles className="size-3" /> Briefing
-        </h2>
-        {briefing.text && (
-          <button
-            type="button"
-            onClick={() => briefing.generate().catch(() => {})}
-            aria-label="Regenerate briefing"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <RefreshCw className={cn('size-3.5', briefing.generating && 'animate-spin')} />
-          </button>
-        )}
-      </div>
-      {briefing.generating && !briefing.text ? (
-        <div className="space-y-2">
-          <div className="h-3.5 w-full animate-pulse rounded bg-secondary" />
-          <div className="h-3.5 w-3/4 animate-pulse rounded bg-secondary" />
-        </div>
-      ) : (
-        <p className="text-[13.5px] leading-relaxed text-foreground/90">{briefing.text}</p>
-      )}
-    </section>
   )
 }
 

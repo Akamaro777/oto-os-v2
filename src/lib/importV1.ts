@@ -84,17 +84,6 @@ export function importV1(raw: unknown): ImportSummary {
       }
     }
 
-    // ── Meals: { date: [ {id,name,cal,prot,ts} ] } ──
-    const meals = asObj(data.meals)
-    for (const [date, list] of Object.entries(meals)) {
-      asArr(list).forEach((meal, i) => {
-        const m = asObj(meal)
-        const id = m.id != null ? String(m.id) : `${date}-${i}`
-        store.setRow(T.meals, id, cleanCells(T.meals, { ...m, date }))
-        bump(T.meals)
-      })
-    }
-
     // ── Portfolio: flatten detail{free,invested,ppl} ──
     asArr(data.portfolio).forEach((entry, i) => {
       const e = asObj(entry)
