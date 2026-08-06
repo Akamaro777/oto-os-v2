@@ -1,13 +1,14 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { Minus, Plus } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ProgressRing } from '@/components/ProgressRing'
 import { CountUp } from '@/components/CountUp'
 import { LineTrend } from '@/components/charts'
 import { pillarColor } from '@/lib/pillars'
 import { type NorthStar, type GoalStatus } from '@/store/northStars'
-import { useBodySeries } from '@/store/body'
-import { usePortfolioDailySeries } from '@/store/portfolio'
-import { useBusinessHoursMap, useBusinessCumulative } from '@/store/business'
+import { setProfileNumber } from '@/store/profile'
 import { useMockExams } from '@/store/study'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
@@ -18,6 +19,12 @@ const STATUS_COLOR: Record<GoalStatus, string> = {
   danger: '#f36a5a',
 }
 
+/** Which profile value a manually-counted goal edits. */
+const COUNTER_KEY: Record<string, string> = {
+  countries: 'countriesVisited',
+  bodies: 'bodiesCount',
+}
+
 interface GoalDetailSheetProps {
   star: NorthStar | null
   onClose: () => void
@@ -25,60 +32,31 @@ interface GoalDetailSheetProps {
 
 /** Full "story" view for a North Star: big ring, the numbers, required rate, history chart. */
 export function GoalDetailSheet({ star, onClose }: GoalDetailSheetProps) {
-  const weight = useBodySeries('weight')
-  const portfolio = usePortfolioDailySeries()
-  const bizMap = useBusinessHoursMap()
-  const cumulative = useBusinessCumulative()
   const mocks = useMockExams()
 
   const series = useMemo(() => {
     if (!star) return []
     switch (star.id) {
-      case 'bulk':
-      case 'cut':
-        return weight
-      case 'money':
-        return portfolio
-      case 'business': {
-        // cumulative hours since the goal start
-        const dates = Object.keys(bizMap)
-          .filter((d) => !cumulative.start || d >= cumulative.start)
-          .sort()
-        let sum = 0
-        return dates.map((date) => {
-          sum += bizMap[date]
-          return { date, value: Math.round(sum * 10) / 10 }
-        })
-      }
       case 'gmat':
         return mocks.map((m) => ({ date: m.date, value: m.score }))
       default:
         return []
     }
-  }, [star, weight, portfolio, bizMap, cumulative.start, mocks])
+  }, [star, mocks])
 
   const rate = useMemo(() => {
     if (!star || star.daysLeft <= 0) return null
     const gap = star.targetValue - star.currentValue
+    if (gap <= 0) return 'target reached'
     switch (star.id) {
-      case 'cut': {
-        const toLose = star.currentValue - star.targetValue
-        if (toLose <= 0) return 'target reached'
-        return `lose ${((toLose / star.daysLeft) * 7).toFixed(2)}kg/week`
-      }
-      case 'bulk': {
-        if (gap <= 0) return 'target reached'
-        return `gain ${((gap / star.daysLeft) * 7).toFixed(2)}kg/week`
-      }
-      case 'money':
-        if (gap <= 0) return 'target reached'
-        return `+€${Math.ceil(gap / star.daysLeft).toLocaleString('en-US')}/day`
-      case 'business':
-        if (gap <= 0) return 'target reached'
-        return `${(gap / star.daysLeft).toFixed(1)}h/day needed`
       case 'gmat':
-        if (gap <= 0) return 'target reached'
         return `${Math.round(gap)} points to go`
+      case 'mrr':
+        return `+€${Math.ceil(gap).toLocaleString('en-US')}/mo to build`
+      case 'countries':
+        return `1 every ${Math.max(1, Math.floor(star.daysLeft / gap))}d`
+      case 'bodies':
+        return `1 every ${Math.max(1, Math.floor(star.daysLeft / gap))}d`
       default:
         return null
     }
@@ -86,6 +64,7 @@ export function GoalDetailSheet({ star, onClose }: GoalDetailSheetProps) {
 
   if (!star) return null
   const color = pillarColor(star.pillar)
+  const counterKey = COUNTER_KEY[star.id]
 
   return (
     <Sheet open={star != null} onOpenChange={(o) => !o && onClose()}>
@@ -122,26 +101,104 @@ export function GoalDetailSheet({ star, onClose }: GoalDetailSheetProps) {
           <Stat label="To stay on it" value={rate ?? '—'} highlight={color} />
         </div>
 
-        <div className="glass rounded-2xl p-4">
-          <h3 className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
-            History
-          </h3>
-          <LineTrend data={series} color={color} target={star.targetValue || undefined} height={170} />
-        </div>
+        {counterKey && (
+          <CounterEditor
+            label={star.id === 'countries' ? 'Countries visited' : 'Count'}
+            value={star.currentValue}
+            color={color}
+            onChange={(v) => setProfileNumber(counterKey, v)}
+          />
+        )}
+        {star.id === 'mrr' && <MrrEditor value={star.currentValue} color={color} />}
+
+        {series.length > 0 && (
+          <div className="glass rounded-2xl p-4">
+            <h3 className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+              History
+            </h3>
+            <LineTrend data={series} color={color} target={star.targetValue || undefined} height={170} />
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   )
 }
 
+/** ± stepper for manually-counted goals (countries, bodies). */
+function CounterEditor({
+  label,
+  value,
+  color,
+  onChange,
+}: {
+  label: string
+  value: number
+  color: string
+  onChange: (v: number) => void
+}) {
+  return (
+    <div className="glass flex items-center justify-between rounded-2xl p-4">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-3">
+        <Button
+          variant="secondary"
+          size="icon"
+          className="rounded-full"
+          aria-label="Decrease"
+          onClick={() => onChange(Math.max(0, value - 1))}
+        >
+          <Minus className="size-4" />
+        </Button>
+        <span className="min-w-8 text-center font-mono text-xl" style={{ color }}>
+          {value}
+        </span>
+        <Button
+          variant="secondary"
+          size="icon"
+          className="rounded-full"
+          aria-label="Increase"
+          onClick={() => onChange(value + 1)}
+        >
+          <Plus className="size-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Editor for the current monthly revenue number. */
+function MrrEditor({ value, color }: { value: number; color: string }) {
+  const [draft, setDraft] = useState(String(value || ''))
+  useEffect(() => setDraft(String(value || '')), [value])
+  function commit() {
+    const n = Number(draft.replace(',', '.'))
+    if (Number.isFinite(n) && n >= 0) setProfileNumber('mrr', n)
+  }
+  return (
+    <div className="glass flex items-center justify-between gap-3 rounded-2xl p-4">
+      <span className="shrink-0 text-sm text-muted-foreground">Current €/month</span>
+      <div className="flex items-center gap-2">
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === 'Enter' && commit()}
+          inputMode="decimal"
+          className="w-24 text-right font-mono"
+          style={{ color }}
+        />
+        <Button variant="secondary" size="sm" onClick={commit}>
+          Set
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function fmtTarget(star: NorthStar): string {
   switch (star.id) {
-    case 'bulk':
-    case 'cut':
-      return `${star.targetValue}kg`
-    case 'money':
-      return `€${star.targetValue.toLocaleString('en-US')}`
-    case 'business':
-      return `${star.targetValue}h`
+    case 'mrr':
+      return `€${star.targetValue.toLocaleString('en-US')}/mo`
     default:
       return String(star.targetValue)
   }

@@ -23,7 +23,7 @@ import { createEvent, updateEvent, deleteEvent } from '@/store/events'
 import { pillarColor } from '@/lib/pillars'
 import { toast } from 'sonner'
 
-const CATEGORIES = ['personal', 'body', 'social', 'money', 'cv', 'study', 'work'] as const
+const CATEGORIES = ['personal', 'body', 'social', 'money', 'study'] as const
 
 interface EventDialogProps {
   open: boolean
@@ -89,11 +89,11 @@ export function EventDialog({ open, onOpenChange, defaultDate, event }: EventDia
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="ev-date">Date</Label>
               <Input id="ev-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="ev-time">Time</Label>
               <Input id="ev-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
             </div>

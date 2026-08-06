@@ -11,7 +11,7 @@ export const PILLAR_META: Record<Pillar, PillarMeta> = {
   body: { id: 'body', label: 'Body', color: '#fb923c' },
   social: { id: 'social', label: 'Social', color: '#f0abfc' },
   money: { id: 'money', label: 'Money', color: '#4ade80' },
-  cv: { id: 'cv', label: 'Study/CV', color: '#7dd3fc' },
+  cv: { id: 'cv', label: 'Study', color: '#7dd3fc' },
   personal: { id: 'personal', label: 'Personal', color: '#8b8d95' },
 }
 

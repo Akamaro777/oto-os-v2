@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
+import { useValue } from 'tinybase/ui-react'
 import type { Pillar } from './schema'
+import { store } from './store'
 import { todayISO, daysBetween } from '@/lib/dates'
 import { getProfileNumber, getProfileString } from './profile'
-import { useBodySeries } from './body'
-import { useAllPortfolio } from './portfolio'
-import { useBusinessCumulative } from './business'
 import { useMockExams } from './study'
 
 export type GoalStatus = 'complete' | 'ahead' | 'ontrack' | 'behind' | 'danger'
@@ -28,8 +27,6 @@ export interface NorthStar {
   targetValue: number
   daysLeft: number
 }
-
-const BULK_BASELINE = 60 // Oto's historical starting weight
 
 function statusOf(pct: number, expected: number): GoalStatus {
   if (pct >= 100) return 'complete'
@@ -62,133 +59,60 @@ function paceLine(
   return `${fmt(Math.abs(diff))} ${diff >= 0 ? 'ahead' : 'behind'}`
 }
 
-const kg = (v: number) => `${v.toFixed(1)}kg`
 const eur = (v: number) => `€${Math.round(v).toLocaleString('en-US')}`
-const hrs = (v: number) => `${v.toFixed(1)}h`
 const pts = (v: number) => `${Math.round(v)} pts`
+const count = (v: number) => `${Math.round(v * 10) / 10}`
+
+/** A goal whose "current" is a manually-updated profile number, paced linearly start→deadline. */
+function manualCard(opts: {
+  id: string
+  pillar: Pillar
+  label: string
+  current: number
+  target: number
+  start: string
+  end: string
+  today: string
+  fmtCurrent: string
+  fmt: (v: number) => string
+}): NorthStar {
+  const { id, pillar, label, current, target, start, end, today, fmtCurrent, fmt } = opts
+  const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0
+  const total = Math.max(1, daysBetween(start, end))
+  const elapsed = Math.max(0, Math.min(total, daysBetween(start, today)))
+  const expectedPct = Math.min(100, (elapsed / total) * 100)
+  const status = statusOf(pct, expectedPct)
+  const daysLeft = Math.max(0, daysBetween(today, end))
+  return {
+    id,
+    pillar,
+    label,
+    pct,
+    expectedPct,
+    current: fmtCurrent,
+    meta: `${daysLeft}d left`,
+    currentValue: current,
+    targetValue: target,
+    daysLeft,
+    status,
+    statusText: statusText(status),
+    pace: paceLine(current, target * (expectedPct / 100), fmt, false),
+  }
+}
 
 /** The North Star goal cards with pace maths, reacting to the store. */
 export function useNorthStars(): NorthStar[] {
-  const weightSeries = useBodySeries('weight')
-  const portfolio = useAllPortfolio()
-  const cumulative = useBusinessCumulative()
   const mocks = useMockExams()
+  // Manual milestone counters (reactive so the cards update as they're edited).
+  const mrr = Number(useValue('profile.mrr', store) ?? 0)
+  const countries = Number(useValue('profile.countriesVisited', store) ?? 0)
+  const bodies = Number(useValue('profile.bodiesCount', store) ?? 0)
 
   return useMemo(() => {
     const today = todayISO()
     const cards: NorthStar[] = []
 
-    // ── Body: bulk before bulk date, else cut ──
-    const latestWeight = weightSeries.length
-      ? weightSeries[weightSeries.length - 1].value
-      : getProfileNumber('weight')
-    const bulkDate = getProfileString('bulkTargetDate')
-    const bulkTgt = getProfileNumber('bulkTargetWeight')
-    const cutDate = getProfileString('cutTargetDate')
-    const cutTgt = getProfileNumber('cutTargetWeight')
-
-    if (bulkDate && today < bulkDate) {
-      const range = Math.max(0.1, bulkTgt - BULK_BASELINE)
-      const pct = Math.min(100, (Math.max(0, latestWeight - BULK_BASELINE) / range) * 100)
-      const total = Math.max(1, daysBetween('2025-11-07', bulkDate))
-      const elapsed = Math.max(0, total - Math.max(0, daysBetween(today, bulkDate)))
-      const expectedPct = Math.min(100, (elapsed / total) * 100)
-      const expectedWeight = BULK_BASELINE + range * (expectedPct / 100)
-      const status = statusOf(pct, expectedPct)
-      cards.push({
-        id: 'bulk',
-        pillar: 'body',
-        label: `Bulk → ${bulkTgt}kg`,
-        pct,
-        expectedPct,
-        current: kg(latestWeight),
-        meta: `${Math.max(0, daysBetween(today, bulkDate))}d left`,
-        currentValue: latestWeight,
-        targetValue: bulkTgt,
-        daysLeft: Math.max(0, daysBetween(today, bulkDate)),
-        status,
-        statusText: statusText(status),
-        pace: paceLine(latestWeight, expectedWeight, kg, false),
-      })
-    } else if (cutDate) {
-      const start = bulkTgt
-      const range = Math.max(0.1, start - cutTgt)
-      const pct = Math.min(100, (Math.max(0, start - latestWeight) / range) * 100)
-      const total = Math.max(1, daysBetween(bulkDate, cutDate))
-      const elapsed = Math.max(0, total - Math.max(0, daysBetween(today, cutDate)))
-      const expectedPct = Math.min(100, (elapsed / total) * 100)
-      const expectedWeight = start - range * (expectedPct / 100)
-      const status = statusOf(pct, expectedPct)
-      cards.push({
-        id: 'cut',
-        pillar: 'body',
-        label: `Cut → ${cutTgt}kg`,
-        pct,
-        expectedPct,
-        current: kg(latestWeight),
-        meta: `${Math.max(0, daysBetween(today, cutDate))}d left`,
-        currentValue: latestWeight,
-        targetValue: cutTgt,
-        daysLeft: Math.max(0, daysBetween(today, cutDate)),
-        status,
-        statusText: statusText(status),
-        pace: paceLine(latestWeight, expectedWeight, kg, true),
-      })
-    }
-
-    // ── Money: portfolio → target ──
-    const sortedP = [...portfolio].sort((a, b) => a.ts - b.ts)
-    const current = sortedP.length ? sortedP[sortedP.length - 1].value : 0
-    const moneyTgt = getProfileNumber('portfolioTarget')
-    const moneyDate = getProfileString('portfolioTargetDate')
-    const moneyPct = moneyTgt > 0 ? Math.min(100, (current / moneyTgt) * 100) : 0
-    const moneyExpectedPct = (() => {
-      if (!sortedP[0]) return 0
-      const total = Math.max(1, daysBetween(sortedP[0].date, moneyDate))
-      const elapsed = Math.max(0, total - Math.max(0, daysBetween(today, moneyDate)))
-      const startPct = (sortedP[0].value / moneyTgt) * 100
-      return Math.min(100, startPct + ((100 - startPct) * elapsed) / total)
-    })()
-    const moneyStatus = statusOf(moneyPct, moneyExpectedPct)
-    cards.push({
-      id: 'money',
-      pillar: 'money',
-      label: `${eur(moneyTgt)} portfolio`,
-      pct: moneyPct,
-      expectedPct: moneyExpectedPct,
-      current: eur(current),
-      meta: `${Math.max(0, daysBetween(today, moneyDate))}d left`,
-      currentValue: current,
-      targetValue: moneyTgt,
-      daysLeft: Math.max(0, daysBetween(today, moneyDate)),
-      status: moneyStatus,
-      statusText: statusText(moneyStatus),
-      pace: paceLine(current, moneyTgt * (moneyExpectedPct / 100), eur, false),
-    })
-
-    // ── Business: cumulative hours ──
-    const bizPct = cumulative.target > 0 ? Math.min(100, (cumulative.logged / cumulative.target) * 100) : 0
-    const bizTotal = Math.max(1, daysBetween(cumulative.start, cumulative.end))
-    const bizElapsed = Math.max(0, Math.min(bizTotal, daysBetween(cumulative.start, today)))
-    const bizExpectedPct = today < cumulative.start ? 0 : Math.min(100, (bizElapsed / bizTotal) * 100)
-    const bizStatus = statusOf(bizPct, bizExpectedPct)
-    cards.push({
-      id: 'business',
-      pillar: 'money',
-      label: `${cumulative.target}h business`,
-      pct: bizPct,
-      expectedPct: bizExpectedPct,
-      current: hrs(cumulative.logged),
-      meta: `${Math.max(0, daysBetween(today, cumulative.end))}d left`,
-      currentValue: cumulative.logged,
-      targetValue: cumulative.target,
-      daysLeft: Math.max(0, daysBetween(today, cumulative.end)),
-      status: bizStatus,
-      statusText: statusText(bizStatus),
-      pace: paceLine(cumulative.logged, cumulative.target * (bizExpectedPct / 100), hrs, false),
-    })
-
-    // ── GMAT mock → target score ──
+    // ── GMAT mock → 705 ──
     const sortedM = [...mocks].sort((a, b) => a.date.localeCompare(b.date))
     const scoreTgt = getProfileNumber('gmatTargetScore')
     const gmatDate = getProfileString('gmatTargetDate')
@@ -234,6 +158,54 @@ export function useNorthStars(): NorthStar[] {
       })
     }
 
+    // ── Money: €5k/month by December ──
+    cards.push(
+      manualCard({
+        id: 'mrr',
+        pillar: 'money',
+        label: `${eur(getProfileNumber('mrrTarget'))}/mo by Dec`,
+        current: mrr,
+        target: getProfileNumber('mrrTarget'),
+        start: getProfileString('mrrStartDate') || '2026-08-06',
+        end: getProfileString('mrrTargetDate') || '2026-12-31',
+        today,
+        fmtCurrent: `${eur(mrr)}/mo`,
+        fmt: eur,
+      }),
+    )
+
+    // ── Personal: visit 12 countries ──
+    cards.push(
+      manualCard({
+        id: 'countries',
+        pillar: 'personal',
+        label: `Visit ${getProfileNumber('countriesTarget')} countries`,
+        current: countries,
+        target: getProfileNumber('countriesTarget'),
+        start: getProfileString('countriesStartDate') || '2026-08-06',
+        end: getProfileString('countriesTargetDate') || '2026-12-31',
+        today,
+        fmtCurrent: `${countries}/${getProfileNumber('countriesTarget')}`,
+        fmt: count,
+      }),
+    )
+
+    // ── Social: 30 bodies ──
+    cards.push(
+      manualCard({
+        id: 'bodies',
+        pillar: 'social',
+        label: `${getProfileNumber('bodiesTarget')} bodies`,
+        current: bodies,
+        target: getProfileNumber('bodiesTarget'),
+        start: getProfileString('bodiesStartDate') || '2026-08-06',
+        end: getProfileString('bodiesTargetDate') || '2026-12-31',
+        today,
+        fmtCurrent: `${bodies}/${getProfileNumber('bodiesTarget')}`,
+        fmt: count,
+      }),
+    )
+
     return cards
-  }, [weightSeries, portfolio, cumulative, mocks])
+  }, [mocks, mrr, countries, bodies])
 }

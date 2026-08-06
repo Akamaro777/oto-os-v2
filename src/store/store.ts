@@ -1,6 +1,7 @@
 import { createStore, type Store } from 'tinybase'
 import { createIndexedDbPersister } from 'tinybase/persisters/persister-indexed-db'
 import { tablesSchema, valuesSchema } from './schema'
+import { runMigrations } from './migrations'
 
 export const DB_NAME = 'oto-os'
 
@@ -21,7 +22,7 @@ export function initPersistence(): Promise<void> {
     bootPromise = persister
       .startAutoLoad()
       .then(() => persister.startAutoSave())
-      .then(() => undefined)
+      .then(() => runMigrations())
   }
   return bootPromise
 }

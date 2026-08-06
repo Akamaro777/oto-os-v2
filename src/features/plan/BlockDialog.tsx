@@ -111,7 +111,7 @@ export function BlockDialog({ open, onOpenChange, date, block, defaultStart }: B
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="block-start">Start</Label>
               <Input
                 id="block-start"
@@ -120,7 +120,7 @@ export function BlockDialog({ open, onOpenChange, date, block, defaultStart }: B
                 onChange={(e) => setStart(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="block-end">End</Label>
               <Input
                 id="block-end"

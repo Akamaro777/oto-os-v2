@@ -3,6 +3,7 @@
  * Haiku-class model extract strict JSON, and applies it to the TinyBase store.
  * Every capture returns a short human summary for the confirmation toast.
  */
+import { format, parseISO } from 'date-fns'
 import { callMessages, MODELS, AnthropicError } from './anthropic'
 import { getSetting } from '@/store/settings'
 import { store } from '@/store/store'
@@ -18,7 +19,7 @@ import { setStudyHours } from '@/store/study'
 import { setSocialRating } from '@/store/social'
 import type { Priority, ProjectStatus } from '@/store/schema'
 
-const PILLAR_HINT = `"category" must be one of: body, social, money, cv, personal.`
+const PILLAR_HINT = `"category" must be one of: personal, body, social, money, study.`
 
 /** Prepended to every capture prompt — the input is speech-to-text, not typed prose. */
 const TRANSCRIPT_HINT = `The user input is a raw speech-to-text transcript: expect mis-heard words, missing punctuation, run-on numbers and filler words. Infer the intended meaning from context (e.g. "way 74" = weight 74, "for our steady" = 4h study) rather than taking odd words literally.`
@@ -111,6 +112,35 @@ ${PLAN_SHAPE}`
   return applyPlanData(data, date)
 }
 
+/** Recent planned days rendered as few-shot examples so auto-plan mimics Oto's real habits. */
+function planningHistory(before: string, maxDays = 10): string[] {
+  const blocksTable = store.getTable(T.blocks)
+  const top3Table = store.getTable(T.top3)
+  const days = [...new Set(
+    Object.values(blocksTable)
+      .map((b) => String(b.date ?? ''))
+      .filter((d) => d && d < before),
+  )]
+    .sort()
+    .slice(-maxDays)
+  return days.map((d) => {
+    const blocks = Object.values(blocksTable)
+      .filter((b) => b.date === d)
+      .sort((a, b) => String(a.start).localeCompare(String(b.start)))
+      .map(
+        (b) =>
+          `${b.start}${b.end ? `–${b.end}` : ''} ${b.title} [${b.category || 'personal'}]${b.done ? ' ✓' : ''}`,
+      )
+      .join(' · ')
+    const top3 = Object.values(top3Table)
+      .filter((t) => t.date === d && String(t.text ?? '').trim())
+      .sort((a, b) => Number(a.slot) - Number(b.slot))
+      .map((t) => t.text)
+      .join(' / ')
+    return `- ${format(parseISO(d), 'EEE')} ${d}: ${blocks}${top3 ? ` | Top3: ${top3}` : ''}`
+  })
+}
+
 /** One-tap agentic planning: builds a full day from tasks, events, goals and free gaps. */
 export async function autoPlanDay(date: string): Promise<string> {
   const key = getSetting('apiKey')
@@ -131,18 +161,25 @@ export async function autoPlanDay(date: string): Promise<string> {
     .filter((b) => b.date === date)
     .map((b) => `- ${b.start}${b.end ? `–${b.end}` : ''} ${b.title}`)
   const p = (k: string) => store.getValue(`profile.${k}`)
+  const history = planningHistory(date)
 
   const context = `Date to plan: ${date} (today is ${todayISO()}).
 Day window: ${p('dayStart') ?? '07:00'}–${p('dayEnd') ?? '24:00'}.
-Daily targets: ${p('bizTarget')}h business work, ${p('studyTarget')}h GMAT study, gym most days.
+Daily targets: ${p('bizTarget')}h business work, ${p('studyTarget')}h GMAT study, ${p('callsDailyTarget') ?? 70} cold calls, gym most days.
+Non-negotiable daily rules:
+- The first 3 hours of the day are phone-free GMAT deep work — schedule this block first, right at the day start.
+- Out of the house by 12:00 — plan the day so he leaves by then.
+- ${p('callsDailyTarget') ?? 70} cold calls — reserve a dedicated block for them.
 Calendar events (fixed, do NOT create blocks that overlap them):
 ${events.length ? events.join('\n') : '- none'}
 Blocks already planned (do NOT duplicate or overlap):
 ${existing.length ? existing.join('\n') : '- none'}
 Open tasks:
 ${openTasks.length ? openTasks.join('\n') : '- none'}
+How Oto planned his recent days (✓ = block actually completed — his real habits):
+${history.length ? history.join('\n') : '- no planning history yet'}
 
-Build the strongest realistic day: schedule deep work early, include GMAT and business blocks to hit the daily targets, slot high-priority/overdue tasks, add a gym block, leave sensible breaks. Pick a Top 3 focused on the highest-leverage outcomes. Only add "tasks" entries if something important is clearly missing.`
+Build the strongest realistic day IN OTO'S OWN STYLE: study the history above and mirror his patterns — typical start time, block lengths, how he names blocks, recurring routines (gym time, meals, calls) and what he actually completes (✓). The plan should read like one he would have written himself, while still honoring the non-negotiable rules. Schedule deep work early, include GMAT and business blocks to hit the daily targets, slot high-priority/overdue tasks, add a gym block, leave sensible breaks. Pick a Top 3 focused on the highest-leverage outcomes. Only add "tasks" entries if something important is clearly missing.`
 
   const raw = await callMessages(key, {
     model: MODELS.sonnet,
@@ -216,7 +253,7 @@ Return ONLY JSON: {"name": string, "met": string (how/where met, short), "cadenc
 export async function captureEvents(text: string): Promise<string> {
   const today = todayISO()
   const system = `You turn spoken plans into calendar events. Today is ${today}.
-Return ONLY JSON: {"events": [{"title": string, "date": "YYYY-MM-DD", "time": "HH:MM" or "", "category": "cv"|"work"|"study"|"body"|"social"|"money"|"personal", "notes": string}]}.
+Return ONLY JSON: {"events": [{"title": string, "date": "YYYY-MM-DD", "time": "HH:MM" or "", "category": "personal"|"body"|"social"|"money"|"study", "notes": string}]}.
 Resolve relative dates ("next Tuesday") from today. No prose.`
   const data = await extract(system, text)
   const { createEvent } = await import('@/store/events')

@@ -10,7 +10,7 @@ import { todayISO, relativeDueLabel, parseHM } from '@/lib/dates'
 import { reconnectDue, birthdaySoon } from '@/lib/people'
 import { useDeviceTilt, requestTiltPermission } from '@/lib/tilt'
 import { getProfileString } from '@/store/profile'
-import { useNorthStars, type NorthStar, type GoalStatus } from '@/store/northStars'
+import { useNorthStars, type GoalStatus } from '@/store/northStars'
 import { useBlocksByDate, computeNowNext, useTop3 } from '@/store/planner'
 import { useAllTasks, filterTasks, sortTasks } from '@/store/tasks'
 import { useAllContacts } from '@/store/people'
@@ -42,7 +42,9 @@ export function TodayScreen() {
   const top3 = useTop3(today)
   const tasks = useAllTasks()
   const contacts = useAllContacts()
-  const [detail, setDetail] = useState<NorthStar | null>(null)
+  // Track the open goal by id so the sheet reflects live edits (counter steppers).
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const detail = detailId ? (stars.find((s) => s.id === detailId) ?? null) : null
 
   // Ticking clock so the Now-block countdown stays live.
   const [nowMin, setNowMin] = useState(currentMinutes)
@@ -86,7 +88,7 @@ export function TodayScreen() {
               <button
                 type="button"
                 key={s.id}
-                onClick={() => setDetail(s)}
+                onClick={() => setDetailId(s.id)}
                 aria-label={`${s.label} details`}
                 className="glass edge-light pressable flex w-40 shrink-0 flex-col items-center gap-2 rounded-2xl p-4"
                 style={{
@@ -208,7 +210,7 @@ export function TodayScreen() {
         )}
       </Stagger>
 
-      <GoalDetailSheet star={detail} onClose={() => setDetail(null)} />
+      <GoalDetailSheet star={detail} onClose={() => setDetailId(null)} />
     </Screen>
   )
 }

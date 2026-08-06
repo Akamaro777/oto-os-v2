@@ -78,6 +78,17 @@ CORE GOALS (5-year, 2026-2031):
 3. MONEY: own business/agency EUR 4k+/mo to escape office work + portfolio growth
 4. CV: HEC Paris MFin admission + standout internship stack
 
+CURRENT MILESTONES (Aug-Dec 2026) - these are what he is actively hitting NOW:
+- GMAT: ${p('gmatTargetScore')} score
+- MONEY: EUR ${p('mrrTarget')}/month by December - currently EUR ${p('mrr')}/mo
+- TRAVEL: visit ${p('countriesTarget')} countries - ${p('countriesVisited')} so far
+- SOCIAL: ${p('bodiesTarget')} bodies - ${p('bodiesCount')} so far
+
+BIG DAILY RULES (non-negotiable, hold him to these):
+- First 3h of the day: phone-free GMAT deep work
+- Out of the house by 12:00
+- ${p('callsDailyTarget')} cold calls a day
+
 CONTEXT:
 - M&A/finance career is INSTRUMENTAL - exists only to get into HEC MFin. Long-term plan is to leave finance for own business.
 - Currently: Tilburg IBA honors, exchange at NUS Aug 2026-Jan 2027, PwC Latvia internship June-Aug 2026

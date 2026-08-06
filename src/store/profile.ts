@@ -12,6 +12,11 @@ export function getProfileString(key: string): string {
   return String(store.getValue(`profile.${key}`) ?? '')
 }
 
+/** Write a profile.* number value. */
+export function setProfileNumber(key: string, value: number): void {
+  store.setValue(`profile.${key}`, value)
+}
+
 export interface DayWindow {
   startH: number
   endH: number
