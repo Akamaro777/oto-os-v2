@@ -31,6 +31,7 @@ export function buildSystemPrompt(): string {
   const cvTable = store.getTable(T.cv) as Record<string, Row>
   const socialTable = store.getTable(T.social) as Record<string, Row>
   const bizHrsWeek = week.reduce((x, d) => x + num(moneyTable[d]?.hours), 0)
+  const callsWeek = week.reduce((x, d) => x + num(cvTable[d]?.calls), 0)
   const studyHrsWeek = week.reduce((x, d) => x + num(cvTable[d]?.studyHours), 0)
   const probsWeek = week.reduce((x, d) => x + num(cvTable[d]?.problems), 0)
   const correctWeek = week.reduce((x, d) => x + num(cvTable[d]?.correct), 0)
@@ -103,11 +104,11 @@ PROFILE:
 TODAY (${td}):
 - Body: ${body.weight ? body.weight + 'kg' : 'no weight'}, sleep ${body.sleep ? body.sleep + 'h' : '-'}, gym ${body.gym ? 'yes' : 'no'}
 - Social: rating ${social.rating ?? '-'}/10, ${num(social.approaches)} approaches, ${num(social.compliments)} compliments, ${num(social.connections)} connections
-- Money: ${num(money.hours).toFixed(1)}h on business
+- Money: ${num(cv.calls)} cold calls${num(money.hours) > 0 ? `, ${num(money.hours).toFixed(1)}h on business` : ''}
 - CV: ${num(cv.studyHours).toFixed(1)}h study, ${num(cv.problems)} GMAT problems${num(cv.problems) > 0 ? ', ' + Math.round((num(cv.correct) / num(cv.problems)) * 100) + '% acc' : ''}
 
 LAST 7 DAYS:
-- Business hours: ${bizHrsWeek.toFixed(1)}h (target ${(num(p('bizTarget')) * 7).toFixed(0)}h)
+- Cold calls: ${callsWeek} (target ${(num(p('callsDailyTarget')) * 7).toFixed(0)})${bizHrsWeek > 0 ? `\n- Business hours: ${bizHrsWeek.toFixed(1)}h` : ''}
 - Study hours: ${studyHrsWeek.toFixed(1)}h
 - GMAT: ${probsWeek} problems${accWeek != null ? ', ' + accWeek + '% acc' : ''}
 - Avg social rating: ${avgRating ?? 'no data'}/10

@@ -52,6 +52,32 @@ export function setColdCalls(date: string, count: number): void {
   else store.setCell(T.cv, date, 'calls', n)
 }
 
+/** Cold calls per day for the trend chart (last `days` ending at `anchor`). */
+export function useColdCallsSeries(days = 7, anchor = todayISO()): { date: string; value: number }[] {
+  const table = useTable(T.cv, store) as Record<string, Cells>
+  return useMemo(() => {
+    const out: { date: string; value: number }[] = []
+    for (let i = days - 1; i >= 0; i--) {
+      const date = addDaysISO(anchor, -i)
+      out.push({ date, value: Number(table[date]?.calls ?? 0) })
+    }
+    return out
+  }, [table, days, anchor])
+}
+
+/** date → cold calls, for the consistency heatmap. */
+export function useColdCallsMap(): Record<string, number> {
+  const table = useTable(T.cv, store) as Record<string, Cells>
+  return useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const [date, row] of Object.entries(table)) {
+      const n = Number(row.calls ?? 0)
+      if (n > 0) out[date] = n
+    }
+    return out
+  }, [table])
+}
+
 export function setPracticeTopic(date: string, topic: string): void {
   if (topic.trim()) store.setCell(T.cv, date, 'topic', topic.trim())
   else store.delCell(T.cv, date, 'topic')

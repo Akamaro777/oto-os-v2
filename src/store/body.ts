@@ -72,6 +72,7 @@ export const GYM_SLOTS = [
   { key: 'legs', label: 'Legs' },
   { key: 'shoulders', label: 'Shoulders' },
   { key: 'abs', label: 'Stretch/Abs' },
+  { key: 'run', label: 'Run' },
 ] as const
 
 export type GymSlot = (typeof GYM_SLOTS)[number]['key']
@@ -85,6 +86,7 @@ function rowToGymWeek(week: string, row: Cells): GymWeek {
     shoulders: row.shoulders ? String(row.shoulders) : undefined,
     abs: row.abs ? String(row.abs) : undefined,
     stretch: row.stretch ? String(row.stretch) : undefined,
+    run: row.run ? String(row.run) : undefined,
   }
 }
 

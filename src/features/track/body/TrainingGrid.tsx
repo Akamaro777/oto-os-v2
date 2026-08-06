@@ -10,7 +10,7 @@ export function TrainingGrid() {
   const data = useGymWeek(week)
 
   return (
-    <div className="grid grid-cols-5 gap-2">
+    <div className="grid grid-cols-3 gap-2">
       {GYM_SLOTS.map(({ key, label }) => {
         const doneDate = data[key as GymSlot]
         const done = Boolean(doneDate)

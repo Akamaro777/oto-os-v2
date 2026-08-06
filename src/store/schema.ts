@@ -153,6 +153,7 @@ export interface GymWeek {
   shoulders?: string
   abs?: string
   stretch?: string
+  run?: string
 }
 
 /** A time-blocking planner block. */
@@ -341,6 +342,7 @@ export const tablesSchema: TablesSchema = {
     shoulders: { type: 'string' },
     abs: { type: 'string' },
     stretch: { type: 'string' },
+    run: { type: 'string' },
   },
   blocks: {
     date: { type: 'string' },
