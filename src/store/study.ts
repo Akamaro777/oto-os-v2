@@ -45,6 +45,13 @@ export function setPracticeNumber(date: string, field: PracticeField, value: str
   else store.setCell(T.cv, date, field, n)
 }
 
+/** Cold calls done on a date (stored on the cv daily log; the money pillar reads it too). */
+export function setColdCalls(date: string, count: number): void {
+  const n = Math.max(0, Math.round(count))
+  if (n === 0) store.delCell(T.cv, date, 'calls')
+  else store.setCell(T.cv, date, 'calls', n)
+}
+
 export function setPracticeTopic(date: string, topic: string): void {
   if (topic.trim()) store.setCell(T.cv, date, 'topic', topic.trim())
   else store.delCell(T.cv, date, 'topic')

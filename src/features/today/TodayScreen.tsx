@@ -15,6 +15,7 @@ import { useBlocksByDate, computeNowNext, useTop3 } from '@/store/planner'
 import { useAllTasks, filterTasks, sortTasks } from '@/store/tasks'
 import { useAllContacts } from '@/store/people'
 import { GoalDetailSheet } from './GoalDetailSheet'
+import { NonNegotiables } from './NonNegotiables'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
   complete: '#c9f158',
@@ -118,6 +119,11 @@ export function TodayScreen() {
             )
           })}
         </div>
+        </StaggerItem>
+
+        {/* Daily non-negotiables */}
+        <StaggerItem>
+          <NonNegotiables date={today} />
         </StaggerItem>
 
         {/* Now / Next */}

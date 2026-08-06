@@ -196,6 +196,15 @@ export interface BusinessPlan {
   ts: number
 }
 
+/** Daily non-negotiable rules checklist (rowId = YYYY-MM-DD). */
+export interface RulesLog {
+  date: string
+  deepwork: boolean // 3h phone-free GMAT deep work
+  noon: boolean // out of the house by 12:00
+  calls: boolean // 70 cold calls
+  run: boolean // Sunday run
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
  * Table id constants
  * ────────────────────────────────────────────────────────────────────────── */
@@ -219,6 +228,7 @@ export const T = {
   inbox: 'inbox',
   chat: 'chat',
   businessPlans: 'businessPlans',
+  rules: 'rules',
 } as const
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -361,6 +371,12 @@ export const tablesSchema: TablesSchema = {
     text: { type: 'string' },
     ts: { type: 'number' },
   },
+  rules: {
+    deepwork: { type: 'boolean', default: false },
+    noon: { type: 'boolean', default: false },
+    calls: { type: 'boolean', default: false },
+    run: { type: 'boolean', default: false },
+  },
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -373,18 +389,18 @@ export const valuesSchema: ValuesSchema = {
   'profile.weight': { type: 'number', default: 74 },
   'profile.targetWeight': { type: 'number', default: 79 },
   'profile.bizTarget': { type: 'number', default: 4 },
-  'profile.studyTarget': { type: 'number', default: 4 },
+  'profile.studyTarget': { type: 'number', default: 3 },
   'profile.bulkTargetWeight': { type: 'number', default: 75 },
   'profile.bulkTargetDate': { type: 'string', default: '2026-05-17' },
   'profile.cutTargetWeight': { type: 'number', default: 67 },
   'profile.cutTargetDate': { type: 'string', default: '2026-08-05' },
   'profile.portfolioTarget': { type: 'number', default: 10000 },
-  'profile.portfolioTargetDate': { type: 'string', default: '2026-08-05' },
-  'profile.gmatTargetDate': { type: 'string', default: '2026-12-31' },
+  'profile.portfolioTargetDate': { type: 'string', default: '2026-12-01' },
+  'profile.gmatTargetDate': { type: 'string', default: '2026-09-20' },
   'profile.gmatTargetScore': { type: 'number', default: 705 },
-  'profile.bizCumulativeTarget': { type: 'number', default: 144 },
-  'profile.bizCumulativeDate': { type: 'string', default: '2026-08-05' },
-  'profile.bizCumulativeStart': { type: 'string', default: '2026-06-30' },
+  'profile.bizCumulativeTarget': { type: 'number', default: 468 },
+  'profile.bizCumulativeDate': { type: 'string', default: '2026-12-01' },
+  'profile.bizCumulativeStart': { type: 'string', default: '2026-08-06' },
   'profile.dayStart': { type: 'string', default: '07:00' },
   'profile.dayEnd': { type: 'string', default: '24:00' },
   // Extended targets present in v1 export
@@ -404,15 +420,15 @@ export const valuesSchema: ValuesSchema = {
   'profile.milestonesVersion': { type: 'number', default: 0 },
   'profile.mrr': { type: 'number', default: 0 },
   'profile.mrrTarget': { type: 'number', default: 5000 },
-  'profile.mrrTargetDate': { type: 'string', default: '2026-12-31' },
+  'profile.mrrTargetDate': { type: 'string', default: '2026-12-01' },
   'profile.mrrStartDate': { type: 'string', default: '2026-08-06' },
   'profile.countriesVisited': { type: 'number', default: 0 },
   'profile.countriesTarget': { type: 'number', default: 12 },
-  'profile.countriesTargetDate': { type: 'string', default: '2026-12-31' },
+  'profile.countriesTargetDate': { type: 'string', default: '2026-12-01' },
   'profile.countriesStartDate': { type: 'string', default: '2026-08-06' },
   'profile.bodiesCount': { type: 'number', default: 0 },
   'profile.bodiesTarget': { type: 'number', default: 30 },
-  'profile.bodiesTargetDate': { type: 'string', default: '2026-12-31' },
+  'profile.bodiesTargetDate': { type: 'string', default: '2026-12-01' },
   'profile.bodiesStartDate': { type: 'string', default: '2026-08-06' },
   'profile.callsDailyTarget': { type: 'number', default: 70 },
   // Settings — secrets live here at runtime only (never committed)

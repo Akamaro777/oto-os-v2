@@ -190,12 +190,12 @@ export function useNorthStars(): NorthStar[] {
       }),
     )
 
-    // ── Social: 30 bodies ──
+    // ── Social: "30" (label is just the number, per Oto) ──
     cards.push(
       manualCard({
         id: 'bodies',
         pillar: 'social',
-        label: `${getProfileNumber('bodiesTarget')} bodies`,
+        label: `${getProfileNumber('bodiesTarget')}`,
         current: bodies,
         target: getProfileNumber('bodiesTarget'),
         start: getProfileString('bodiesStartDate') || '2026-08-06',

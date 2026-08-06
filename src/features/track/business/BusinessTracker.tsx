@@ -31,6 +31,7 @@ import {
   useBusinessPlan,
   setBusinessPlan,
 } from '@/store/business'
+import { useCvLog, setColdCalls } from '@/store/study'
 import { toast } from 'sonner'
 
 const MONEY = PILLAR_META.money.color
@@ -46,6 +47,8 @@ export function BusinessTracker() {
   const ideas = useIdeas()
 
   const dailyTarget = getProfileNumber('bizTarget')
+  const callsTarget = getProfileNumber('callsDailyTarget') || 70
+  const calls = useCvLog(date)?.calls ?? 0
   const tomorrow = tomorrowISO()
   const plan = useBusinessPlan(tomorrow)
 
@@ -86,6 +89,49 @@ export function BusinessTracker() {
               <Plus className="size-4" />
             </button>
           </div>
+        </div>
+      </TrackerCard>
+
+      <TrackerCard title="Cold calls">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="font-serif text-4xl" style={{ color: MONEY, textShadow: `0 0 24px ${MONEY}44` }}>
+              <CountUp value={calls} format={(v) => String(Math.round(v))} />
+            </span>
+            <span className="font-mono text-sm text-muted-foreground"> / {callsTarget} today</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Decrease calls"
+              onClick={() => setColdCalls(date, calls - 1)}
+              className="flex size-9 items-center justify-center rounded-full bg-secondary text-muted-foreground hover:text-foreground"
+            >
+              <Minus className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Add 1 call"
+              onClick={() => setColdCalls(date, calls + 1)}
+              className="flex size-9 items-center justify-center rounded-full bg-secondary text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Add 10 calls"
+              onClick={() => setColdCalls(date, calls + 10)}
+              className="flex h-9 items-center justify-center rounded-full bg-secondary px-3 font-mono text-xs text-muted-foreground hover:text-foreground"
+            >
+              +10
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+          <div
+            className="h-full rounded-full transition-[width]"
+            style={{ width: `${Math.min(100, (calls / callsTarget) * 100)}%`, backgroundColor: MONEY }}
+          />
         </div>
       </TrackerCard>
 

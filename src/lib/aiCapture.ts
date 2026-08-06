@@ -15,7 +15,7 @@ import { createProject, type ProjectInput } from '@/store/projects'
 import { createContact, type ContactInput } from '@/store/people'
 import { setBodyNumber } from '@/store/body'
 import { setBusinessHours } from '@/store/business'
-import { setStudyHours } from '@/store/study'
+import { setStudyHours, setColdCalls } from '@/store/study'
 import { setSocialRating } from '@/store/social'
 import type { Priority, ProjectStatus } from '@/store/schema'
 
@@ -169,7 +169,7 @@ Daily targets: ${p('bizTarget')}h business work, ${p('studyTarget')}h GMAT study
 Non-negotiable daily rules:
 - The first 3 hours of the day are phone-free GMAT deep work — schedule this block first, right at the day start.
 - Out of the house by 12:00 — plan the day so he leaves by then.
-- ${p('callsDailyTarget') ?? 70} cold calls — reserve a dedicated block for them.
+- ${p('callsDailyTarget') ?? 70} cold calls — reserve a dedicated block for them.${format(parseISO(date), 'EEE') === 'Sun' ? '\n- It is Sunday: include a run block.' : ''}
 Calendar events (fixed, do NOT create blocks that overlap them):
 ${events.length ? events.join('\n') : '- none'}
 Blocks already planned (do NOT duplicate or overlap):
@@ -285,7 +285,7 @@ export async function captureDailyLog(text: string, date: string): Promise<strin
 Return ONLY JSON (omit or null anything not mentioned):
 {"weight": number|null (kg), "sleep": number|null (hours),
 "businessHours": number|null (hours worked on business), "studyHours": number|null (GMAT/study hours),
-"rating": number|null (1-10 day rating)}. No prose.`
+"calls": number|null (cold calls made), "rating": number|null (1-10 day rating)}. No prose.`
   const data = await extract(system, text)
 
   const parts: string[] = []
@@ -308,6 +308,11 @@ Return ONLY JSON (omit or null anything not mentioned):
   if (study != null && study > 0 && study <= 24) {
     setStudyHours(date, study)
     parts.push(`${study}h study`)
+  }
+  const calls = num(data.calls)
+  if (calls != null && calls > 0 && calls <= 500) {
+    setColdCalls(date, calls)
+    parts.push(`${Math.round(calls)} calls`)
   }
   const rating = num(data.rating)
   if (rating != null && rating >= 1 && rating <= 10) {

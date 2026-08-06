@@ -88,6 +88,7 @@ BIG DAILY RULES (non-negotiable, hold him to these):
 - First 3h of the day: phone-free GMAT deep work
 - Out of the house by 12:00
 - ${p('callsDailyTarget')} cold calls a day
+- Every Sunday: a run
 
 CONTEXT:
 - M&A/finance career is INSTRUMENTAL - exists only to get into HEC MFin. Long-term plan is to leave finance for own business.
