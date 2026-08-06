@@ -41,6 +41,9 @@ export default defineConfig(({ command }) => ({
       },
     }),
   ],
+  define: {
+    __BUILD_TS__: JSON.stringify(new Date().toISOString()),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

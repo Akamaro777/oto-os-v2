@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Upload, Download } from 'lucide-react'
+import { Upload, Download, RefreshCw } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -189,6 +189,26 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
             <p className="text-[11px] text-muted-foreground">
               Loads your old app's export into this device. Merges into existing data.
             </p>
+          </div>
+
+          <div className="space-y-1.5 border-t border-border pt-4">
+            <Label>App version</Label>
+            <p className="font-mono text-[11px] text-muted-foreground">
+              Build {new Date(__BUILD_TS__).toLocaleString()}
+            </p>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => {
+                navigator.serviceWorker
+                  ?.getRegistration()
+                  .then((r) => r?.update())
+                  .catch(() => {})
+                toast('Checking… the app reloads by itself if there is a new version')
+              }}
+            >
+              <RefreshCw className="size-4" /> Check for update
+            </Button>
           </div>
 
           <div className="space-y-1.5 border-t border-border pt-4">

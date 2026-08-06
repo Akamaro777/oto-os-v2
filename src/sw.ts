@@ -11,6 +11,12 @@ declare const self: ServiceWorkerGlobalScope
 cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 
+// Activate a new version immediately instead of waiting for every window to
+// close — iOS keeps the installed PWA alive for days, which left updates stuck
+// in the "waiting" state. The page reloads itself on controllerchange.
+self.addEventListener('install', () => {
+  void self.skipWaiting()
+})
 self.addEventListener('message', (event) => {
   if ((event.data as { type?: string } | null)?.type === 'SKIP_WAITING') self.skipWaiting()
 })
