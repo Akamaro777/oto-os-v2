@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Trash2, Camera, Plus } from 'lucide-react'
+import { Trash2, Camera, Plus, ExternalLink } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -180,14 +180,32 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
 
           <div className="space-y-1.5">
             <Label htmlFor="c-ig">Instagram</Label>
-            <Input
-              id="c-ig"
-              value={instagram}
-              onChange={(e) => setInstagram(e.target.value)}
-              placeholder="@handle"
-              autoCapitalize="none"
-              autoCorrect="off"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                id="c-ig"
+                value={instagram}
+                onChange={(e) => setInstagram(e.target.value)}
+                placeholder="@handle"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+              {instagram.trim() && (
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  aria-label="Open Instagram profile"
+                  onClick={() =>
+                    window.open(
+                      `https://instagram.com/${instagram.trim().replace(/^@/, '')}`,
+                      '_blank',
+                      'noopener,noreferrer',
+                    )
+                  }
+                >
+                  <ExternalLink className="size-4" />
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1.5">

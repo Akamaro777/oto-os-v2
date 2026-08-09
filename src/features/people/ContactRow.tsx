@@ -47,12 +47,21 @@ export function ContactRow({ contact, onEdit }: ContactRowProps) {
             </span>
           )}
         </div>
-        <p className="flex items-center gap-1 truncate font-mono text-[11px] text-muted-foreground">
-          {contact.instagram && <AtSign className="size-2.5 shrink-0" />}
-          {sub}
-        </p>
+        <p className="truncate font-mono text-[11px] text-muted-foreground">{sub}</p>
         </span>
       </button>
+      {contact.instagram && (
+        <a
+          href={`https://instagram.com/${contact.instagram}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Open @${contact.instagram} on Instagram`}
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground hover:text-foreground"
+        >
+          <AtSign className="size-3.5" />
+        </a>
+      )}
       <Button
         size="sm"
         variant="secondary"

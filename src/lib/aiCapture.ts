@@ -201,29 +201,50 @@ Build the strongest realistic day IN OTO'S OWN STYLE: study the history above an
 
 /* ── New person ── */
 
+const CATEGORY_IDS = ['gym', 'dorm', 'approached', 'nus', 'smu', 'street', 'business']
+
+/**
+ * One dictation → any number of people. Oto meets ~10 new people a day and
+ * describes them in a single ramble, so the model returns an array and every
+ * person in it becomes a contact.
+ */
 export async function captureContact(text: string): Promise<string> {
-  const system = `You turn a spoken description of a person into CRM fields. This powers a memory system — capture EVERY fact mentioned (job, hometown, hobbies, plans, family, anything) so the user can recall this person later.
-Return ONLY JSON: {"name": string, "met": string (how/where met, short), "cadenceDays": number (reconnect interval in days, 0 if not mentioned),
-"birthday": string ("MM-DD" or ""), "notes": string (all facts worth remembering, one per line, "" if none),
+  const system = `You turn a spoken description of ONE OR MORE people into CRM records. This powers a memory system — capture EVERY fact mentioned about each person (job, hometown, hobbies, plans, family, looks, anything) so the user can recall them later.
+The speaker often describes several people in one go, separated by phrases like "then", "also", "another guy", "and this girl". Split them into separate people. Never merge two people into one record, and never invent a person who was not described.
+Return ONLY JSON: {"people": [{"name": string (use a descriptor like "Tall guy from gym" if no name was said),
+"met": string (how/where met, short), "cadenceDays": number (reconnect interval in days, 0 if not mentioned),
+"birthday": string ("MM-DD" or ""), "notes": string (all facts about THIS person, one per line, "" if none),
+"instagram": string (handle without @, "" if not mentioned),
 "tags": string[] (1-3 short lowercase context tags; [] if unclear),
-"category": one of "gym"|"dorm"|"approached"|"nus"|"smu"|"street"|"business"|"other" (where/how they were met; "approached" means a girl he approached; "other" if unclear)}. No prose.`
+"category": one of "gym"|"dorm"|"approached"|"nus"|"smu"|"street"|"business"|"other" (where/how they were met; "approached" means a girl he approached; "other" if unclear)}]}. No prose.`
   const data = await extract(system, text)
-  const name = str(data.name)
-  if (!name) throw new AnthropicError('No name detected.')
-  const input: ContactInput = {
-    name,
-    met: str(data.met),
-    cadenceDays: num(data.cadenceDays) ?? 0,
-    birthday: /^\d{2}-\d{2}$/.test(str(data.birthday)) ? str(data.birthday) : '',
-    notes: str(data.notes),
-    tags: arr(data.tags).map(str).filter(Boolean).slice(0, 3).join(','),
-    category: ['gym', 'dorm', 'approached', 'nus', 'smu', 'street', 'business'].includes(str(data.category))
-      ? str(data.category)
-      : 'other',
-    lastContact: todayISO(),
+
+  const people = arr(data.people)
+  // Tolerate a single-object response from the model.
+  const rows = people.length ? people : data.name ? [data] : []
+  const names: string[] = []
+  for (const p of rows) {
+    const o = p as Record<string, unknown>
+    const name = str(o.name)
+    if (!name) continue
+    const input: ContactInput = {
+      name,
+      met: str(o.met),
+      cadenceDays: num(o.cadenceDays) ?? 0,
+      birthday: /^\d{2}-\d{2}$/.test(str(o.birthday)) ? str(o.birthday) : '',
+      notes: str(o.notes),
+      instagram: str(o.instagram),
+      tags: arr(o.tags).map(str).filter(Boolean).slice(0, 3).join(','),
+      category: CATEGORY_IDS.includes(str(o.category)) ? str(o.category) : 'other',
+      lastContact: todayISO(),
+    }
+    createContact(input)
+    names.push(name)
   }
-  createContact(input)
-  return `${name} added to People`
+
+  if (!names.length) throw new AnthropicError('No people detected — say who you met.')
+  if (names.length === 1) return `${names[0]} added to People`
+  return `${names.length} people added: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`
 }
 
 /* ── New deal (money pipeline) ── */

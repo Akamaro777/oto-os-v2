@@ -8,6 +8,7 @@ import { getSetting, setSetting } from '@/store/settings'
 import { importV1 } from '@/lib/importV1'
 import { exportBackup, mergeImport } from '@/lib/exportData'
 import { listSnapshots, downloadSnapshot, type Snapshot } from '@/lib/backups'
+import { parseInstagramExport, importInstagramAccounts } from '@/lib/instagramImport'
 import { pull as syncPull } from '@/lib/sync'
 import { pushSupported, isPushEnabled, enablePush, disablePush } from '@/lib/push'
 import { toast } from 'sonner'
@@ -28,6 +29,25 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
   const seedRef = useRef<HTMLInputElement>(null)
+  const igRef = useRef<HTMLInputElement>(null)
+  const [igLimit, setIgLimit] = useState('25')
+
+  async function handleInstagramImport(file: File) {
+    try {
+      const accounts = parseInstagramExport(JSON.parse(await file.text()))
+      if (!accounts.length) {
+        toast.error('No accounts found — pick followers_1.json or following.json')
+        return
+      }
+      const limit = Math.max(1, Number(igLimit) || 25)
+      const r = importInstagramAccounts(accounts, limit)
+      toast.success(
+        `${r.created} added${r.linked ? `, ${r.linked} already linked` : ''}${r.skipped ? `, ${r.skipped} older skipped` : ''}`,
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? `Import failed: ${err.message}` : 'Import failed')
+    }
+  }
 
   async function handleSeedImport(file: File) {
     try {
@@ -226,6 +246,37 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
             </Button>
             <p className="text-[11px] text-muted-foreground">
               Merges an oto-os data file (e.g. the GMAT seed) into this device — adds records, never deletes.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 border-t border-border pt-4">
+            <Label>Instagram export</Label>
+            <input
+              ref={igRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handleInstagramImport(file)
+                e.target.value = ''
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <Input
+                value={igLimit}
+                onChange={(e) => setIgLimit(e.target.value)}
+                inputMode="numeric"
+                className="w-16 text-center font-mono"
+                aria-label="How many recent accounts to import"
+              />
+              <Button variant="secondary" className="flex-1" onClick={() => igRef.current?.click()}>
+                <Upload className="size-4" /> Choose followers/following JSON
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              From Instagram → Settings → Your activity → Download your information (JSON). Adds the
+              most recent N accounts you don't already have; existing handles are left alone.
             </p>
           </div>
 
