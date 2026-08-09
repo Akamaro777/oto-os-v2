@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getSetting, setSetting } from '@/store/settings'
 import { importV1 } from '@/lib/importV1'
-import { exportBackup } from '@/lib/exportData'
+import { exportBackup, mergeImport } from '@/lib/exportData'
 import { listSnapshots, downloadSnapshot, type Snapshot } from '@/lib/backups'
 import { pull as syncPull } from '@/lib/sync'
 import { pushSupported, isPushEnabled, enablePush, disablePush } from '@/lib/push'
@@ -27,6 +27,20 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
   const [pushBusy, setPushBusy] = useState(false)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
+  const seedRef = useRef<HTMLInputElement>(null)
+
+  async function handleSeedImport(file: File) {
+    try {
+      const result = mergeImport(JSON.parse(await file.text()))
+      if (!result) {
+        toast.error('Not an oto-os data file')
+        return
+      }
+      toast.success(`Merged ${result.rows} records into ${result.tables.join(', ')}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? `Import failed: ${err.message}` : 'Import failed')
+    }
+  }
 
   async function handleTogglePush() {
     setPushBusy(true)
@@ -191,6 +205,27 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
             </Button>
             <p className="text-[11px] text-muted-foreground">
               Loads your old app's export into this device. Merges into existing data.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 border-t border-border pt-4">
+            <Label>Import data / seed</Label>
+            <input
+              ref={seedRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handleSeedImport(file)
+                e.target.value = ''
+              }}
+            />
+            <Button variant="secondary" className="w-full" onClick={() => seedRef.current?.click()}>
+              <Upload className="size-4" /> Choose data JSON
+            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              Merges an oto-os data file (e.g. the GMAT seed) into this device — adds records, never deletes.
             </p>
           </div>
 
