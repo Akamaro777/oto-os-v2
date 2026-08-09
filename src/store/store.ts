@@ -23,6 +23,10 @@ export function initPersistence(): Promise<void> {
       .startAutoLoad()
       .then(() => persister.startAutoSave())
       .then(() => runMigrations())
+      .then(() => {
+        // Weekly safety snapshot, after the real data has loaded.
+        void import('@/lib/backups').then((m) => m.maybeSnapshot())
+      })
   }
   return bootPromise
 }

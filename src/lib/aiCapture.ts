@@ -4,7 +4,7 @@
  * Every capture returns a short human summary for the confirmation toast.
  */
 import { format, parseISO } from 'date-fns'
-import { callMessages, MODELS, AnthropicError } from './anthropic'
+import { callMessages, imageBlock, MODELS, AnthropicError } from './anthropic'
 import { getSetting } from '@/store/settings'
 import { store } from '@/store/store'
 import { T } from '@/store/schema'
@@ -230,9 +230,10 @@ ${PILLAR_HINT} No prose.`
 /* ── New person ── */
 
 export async function captureContact(text: string): Promise<string> {
-  const system = `You turn a spoken description of a person into CRM fields.
+  const system = `You turn a spoken description of a person into CRM fields. This powers a memory system — capture EVERY fact mentioned (job, hometown, hobbies, plans, family, anything) so the user can recall this person later.
 Return ONLY JSON: {"name": string, "met": string (how/where met, short), "cadenceDays": number (reconnect interval in days, 0 if not mentioned),
-"birthday": string ("MM-DD" or ""), "notes": string (anything worth remembering)}. No prose.`
+"birthday": string ("MM-DD" or ""), "notes": string (all facts worth remembering, one per line, "" if none),
+"tags": string[] (1-3 short lowercase context tags like "nus", "business", "dating", "football"; [] if unclear)}. No prose.`
   const data = await extract(system, text)
   const name = str(data.name)
   if (!name) throw new AnthropicError('No name detected.')
@@ -242,10 +243,129 @@ Return ONLY JSON: {"name": string, "met": string (how/where met, short), "cadenc
     cadenceDays: num(data.cadenceDays) ?? 0,
     birthday: /^\d{2}-\d{2}$/.test(str(data.birthday)) ? str(data.birthday) : '',
     notes: str(data.notes),
+    tags: arr(data.tags).map(str).filter(Boolean).slice(0, 3).join(','),
     lastContact: todayISO(),
   }
   createContact(input)
   return `${name} added to People`
+}
+
+/* ── New deal (money pipeline) ── */
+
+export async function captureDeal(text: string): Promise<string> {
+  const system = `You turn a spoken note about a client/prospect into a deal record.
+Return ONLY JSON: {"name": string (client or company name), "mrr": number (EUR per month, 0 if unknown),
+"status": "lead"|"talking"|"closed"|"lost", "notes": string (context worth keeping, "" if none)}.
+Default status "lead" unless the wording clearly indicates a conversation ("talking"), a signed/paying client ("closed") or a dead deal ("lost"). No prose.`
+  const data = await extract(system, text)
+  const name = str(data.name)
+  if (!name) throw new AnthropicError('No client name detected.')
+  const { createDeal } = await import('@/store/deals')
+  const status = ['lead', 'talking', 'closed', 'lost'].includes(str(data.status))
+    ? str(data.status)
+    : 'lead'
+  createDeal({ name, mrr: num(data.mrr) ?? 0, status, notes: str(data.notes) })
+  return `Deal "${name}" added as ${status}${num(data.mrr) ? ` · €${num(data.mrr)}/mo` : ''}`
+}
+
+/* ── GMAT photo capture (vision) ── */
+
+export interface GmatPhotoExtract {
+  kind: 'practice' | 'mock' | 'errorlist'
+  date: string | null
+  problems: number | null
+  correct: number | null
+  topic: string
+  mockScore: number | null
+  errors: { section: string; topic: string; reason: string; note: string }[]
+}
+
+/**
+ * Read a photo of a practice set, mock score report, or wrong-question list
+ * and extract structured GMAT data. The caller shows a confirm step before
+ * anything is saved.
+ */
+export async function extractGmatPhoto(dataUrl: string): Promise<GmatPhotoExtract> {
+  const key = getSetting('apiKey')
+  if (!key) throw new AnthropicError('Add your Anthropic API key in Settings first.')
+  const system = `You read a photo related to GMAT prep: a practice set (notebook or app screen), a mock/official score report, or a list of wrong questions / error log. Today is ${todayISO()}.
+Return ONLY JSON:
+{"kind": "practice"|"mock"|"errorlist",
+"date": "YYYY-MM-DD" or null (only if visible in the image),
+"problems": number|null (total questions attempted), "correct": number|null,
+"topic": string ("" if mixed/unknown; short, e.g. "rates", "algebra", "critical reasoning"),
+"mockScore": number|null (total GMAT score if this is a score report),
+"errors": [{"section": "quant"|"verbal"|"di", "topic": string (short, lowercase), "reason": "concept"|"careless"|"time"|"", "note": string (brief, "" if none)}]}.
+List one errors[] entry per wrong question you can identify. Use "di" for Data Insights / Integrated Reasoning. Infer topic from the question content when possible. No prose.`
+  const raw = await callMessages(key, {
+    model: MODELS.sonnet,
+    maxTokens: 3000,
+    system,
+    messages: [
+      {
+        role: 'user',
+        content: [imageBlock(dataUrl), { type: 'text', text: 'Extract the GMAT data from this photo.' }],
+      },
+    ],
+  })
+  let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+  const start = s.indexOf('{')
+  const end = s.lastIndexOf('}')
+  if (start !== -1 && end !== -1) s = s.slice(start, end + 1)
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(s) as Record<string, unknown>
+  } catch {
+    throw new AnthropicError('Could not read the photo — try a clearer shot.')
+  }
+  const kind = ['practice', 'mock', 'errorlist'].includes(str(data.kind))
+    ? (str(data.kind) as GmatPhotoExtract['kind'])
+    : 'practice'
+  return {
+    kind,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(str(data.date)) ? str(data.date) : null,
+    problems: num(data.problems) ?? null,
+    correct: num(data.correct) ?? null,
+    topic: str(data.topic),
+    mockScore: num(data.mockScore) ?? null,
+    errors: arr(data.errors).map((e) => {
+      const o = e as Record<string, unknown>
+      return {
+        section: ['quant', 'verbal', 'di'].includes(str(o.section)) ? str(o.section) : 'quant',
+        topic: str(o.topic).toLowerCase(),
+        reason: ['concept', 'careless', 'time'].includes(str(o.reason)) ? str(o.reason) : '',
+        note: str(o.note),
+      }
+    }).filter((e) => e.topic),
+  }
+}
+
+/** Save a confirmed photo extraction into the store. Returns a summary line. */
+export async function applyGmatExtract(x: GmatPhotoExtract, fallbackDate: string): Promise<string> {
+  const date = x.date ?? fallbackDate
+  const { addGmatError, addMockExam } = await import('@/store/study')
+  const parts: string[] = []
+  if (x.mockScore != null && x.mockScore >= 200 && x.mockScore <= 805) {
+    addMockExam(date, x.mockScore)
+    parts.push(`mock ${x.mockScore}`)
+  }
+  if (x.problems != null && x.problems > 0) {
+    setPracticeNumberFromPhoto(date, x.problems, x.correct)
+    if (x.topic) {
+      const { setPracticeTopic } = await import('@/store/study')
+      setPracticeTopic(date, x.topic)
+    }
+    parts.push(`${x.problems} problems${x.correct != null ? ` · ${x.correct} correct` : ''}`)
+  }
+  for (const e of x.errors) addGmatError({ date, section: e.section, topic: e.topic, reason: e.reason, note: e.note })
+  if (x.errors.length) parts.push(`${x.errors.length} errors logged`)
+  if (!parts.length) throw new AnthropicError('Nothing usable found in the photo.')
+  return `Saved: ${parts.join(' · ')}`
+}
+
+function setPracticeNumberFromPhoto(date: string, problems: number, correct: number | null): void {
+  store.setCell(T.cv, date, 'problems', problems)
+  if (correct != null) store.setCell(T.cv, date, 'correct', correct)
 }
 
 /* ── New calendar event(s) ── */

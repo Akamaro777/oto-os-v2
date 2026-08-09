@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { useTable } from 'tinybase/ui-react'
 import { store } from './store'
-import { T, type Contact } from './schema'
+import { T, type Contact, type Interaction } from './schema'
 import { newId } from '@/lib/ids'
-import { todayISO, daysBetween } from '@/lib/dates'
+import { todayISO, addDaysISO, daysBetween } from '@/lib/dates'
 import { reconnectDue } from '@/lib/people'
 
 type Cells = Record<string, string | number | boolean | undefined>
@@ -18,6 +18,10 @@ function rowToContact(id: string, row: Cells): Contact {
     cadenceDays: row.cadenceDays != null ? Number(row.cadenceDays) : undefined,
     birthday: row.birthday ? String(row.birthday) : undefined,
     ts: Number(row.ts ?? 0),
+    photo: row.photo ? String(row.photo) : undefined,
+    tags: row.tags ? String(row.tags) : undefined,
+    quizLevel: row.quizLevel != null ? Number(row.quizLevel) : undefined,
+    quizDue: row.quizDue ? String(row.quizDue) : undefined,
   }
 }
 
@@ -45,6 +49,8 @@ export interface ContactInput {
   cadenceDays?: number
   birthday?: string
   notes?: string
+  photo?: string
+  tags?: string
 }
 
 export function createContact(input: ContactInput): string {
@@ -55,6 +61,8 @@ export function createContact(input: ContactInput): string {
   if (input.cadenceDays) row.cadenceDays = input.cadenceDays
   if (input.birthday?.trim()) row.birthday = input.birthday.trim()
   if (input.notes?.trim()) row.notes = input.notes.trim()
+  if (input.photo) row.photo = input.photo
+  if (input.tags?.trim()) row.tags = input.tags.trim()
   store.setRow(T.contacts, id, row as Record<string, string | number | boolean>)
   return id
 }
@@ -65,6 +73,8 @@ export function updateContact(id: string, patch: ContactInput): void {
   setOrClearString(id, 'lastContact', patch.lastContact)
   setOrClearString(id, 'birthday', patch.birthday)
   setOrClearString(id, 'notes', patch.notes)
+  setOrClearString(id, 'photo', patch.photo)
+  setOrClearString(id, 'tags', patch.tags)
   if (patch.cadenceDays && patch.cadenceDays > 0) {
     store.setCell(T.contacts, id, 'cadenceDays', patch.cadenceDays)
   } else {
@@ -84,4 +94,65 @@ export function logTouch(id: string): void {
 
 export function deleteContact(id: string): void {
   store.delRow(T.contacts, id)
+  // Remove the person's interaction timeline too.
+  const interactions = store.getTable(T.interactions)
+  for (const [rowId, row] of Object.entries(interactions)) {
+    if (row.contactId === id) store.delRow(T.interactions, rowId)
+  }
+}
+
+/* ── Interactions: the relationship memory timeline ── */
+
+export function useInteractions(contactId: string): Interaction[] {
+  const table = useTable(T.interactions, store) as Record<string, Cells>
+  return useMemo(
+    () =>
+      Object.entries(table)
+        .filter(([, row]) => row.contactId === contactId)
+        .map(([id, row]) => ({
+          id,
+          contactId,
+          date: String(row.date ?? ''),
+          note: String(row.note ?? ''),
+          ts: Number(row.ts ?? 0),
+        }))
+        .sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts),
+    [table, contactId],
+  )
+}
+
+/** Log a conversation: adds a timeline note and bumps lastContact. */
+export function addInteraction(contactId: string, note: string, date = todayISO()): string {
+  const id = newId()
+  store.setRow(T.interactions, id, { contactId, date, note: note.trim(), ts: Date.now() })
+  store.setCell(T.contacts, contactId, 'lastContact', date)
+  return id
+}
+
+export function deleteInteraction(id: string): void {
+  store.delRow(T.interactions, id)
+}
+
+/* ── Recall quiz (spaced repetition over people) ── */
+
+const QUIZ_INTERVALS = [1, 3, 7, 16, 35, 90] // days until next review per level
+
+/** Contacts due for a recall round: never quizzed or due date reached. */
+export function quizDueContacts(contacts: Contact[], today = todayISO()): Contact[] {
+  return contacts
+    .filter((c) => c.name && (!c.quizDue || c.quizDue <= today))
+    .sort((a, b) => (a.quizLevel ?? 0) - (b.quizLevel ?? 0) || b.ts - a.ts)
+}
+
+/** Record a quiz answer: right → longer interval, wrong → back to daily. */
+export function recordQuizResult(id: string, correct: boolean, today = todayISO()): void {
+  const level = Number(store.getCell(T.contacts, id, 'quizLevel') ?? 0)
+  const next = correct ? Math.min(level + 1, QUIZ_INTERVALS.length) : 0
+  store.setCell(T.contacts, id, 'quizLevel', next)
+  store.setCell(
+    T.contacts,
+    id,
+    'quizDue',
+    addDaysISO(today, QUIZ_INTERVALS[Math.min(next, QUIZ_INTERVALS.length - 1)]),
+  )
 }

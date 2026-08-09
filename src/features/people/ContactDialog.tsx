@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Trash2, Camera, Plus } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -12,8 +12,16 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { type Contact } from '@/store/schema'
-import { createContact, updateContact, deleteContact } from '@/store/people'
-import { todayISO } from '@/lib/dates'
+import {
+  createContact,
+  updateContact,
+  deleteContact,
+  useInteractions,
+  addInteraction,
+  deleteInteraction,
+} from '@/store/people'
+import { fileToJpegDataURL } from '@/lib/images'
+import { todayISO, shortDate } from '@/lib/dates'
 import { toast } from 'sonner'
 
 interface ContactDialogProps {
@@ -30,6 +38,9 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
   const [cadence, setCadence] = useState('')
   const [birthday, setBirthday] = useState('')
   const [notes, setNotes] = useState('')
+  const [tags, setTags] = useState('')
+  const [photo, setPhoto] = useState('')
+  const photoRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -39,7 +50,17 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
     setCadence(contact?.cadenceDays ? String(contact.cadenceDays) : '')
     setBirthday(contact?.birthday ?? '')
     setNotes(contact?.notes ?? '')
+    setTags(contact?.tags ?? '')
+    setPhoto(contact?.photo ?? '')
   }, [open, contact, isEdit])
+
+  async function handlePhoto(file: File) {
+    try {
+      setPhoto(await fileToJpegDataURL(file, 192, 0.75))
+    } catch {
+      toast.error('Could not read that image')
+    }
+  }
 
   function handleSave() {
     const trimmed = name.trim()
@@ -54,6 +75,8 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
       cadenceDays: Number(cadence) || 0,
       birthday,
       notes,
+      tags,
+      photo,
     }
     if (isEdit) {
       updateContact(contact.id, fields)
@@ -67,7 +90,7 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md gap-5">
+      <DialogContent className="max-h-[85dvh] max-w-md gap-5 overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl">
             {isEdit ? 'Edit person' : 'Add person'}
@@ -75,15 +98,40 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="c-name">Name</Label>
-            <Input
-              id="c-name"
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Full name"
+          {/* Photo + name */}
+          <div className="flex items-center gap-4">
+            <input
+              ref={photoRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handlePhoto(f)
+                e.target.value = ''
+              }}
             />
+            <button
+              type="button"
+              onClick={() => photoRef.current?.click()}
+              aria-label="Set photo"
+              className="relative size-16 shrink-0 overflow-hidden rounded-full bg-secondary"
+            >
+              {photo ? (
+                <img src={photo} alt="" className="size-full object-cover" />
+              ) : (
+                <Camera className="absolute inset-0 m-auto size-5 text-muted-foreground" />
+              )}
+            </button>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Label htmlFor="c-name">Name</Label>
+              <Input
+                id="c-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Full name"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -92,12 +140,22 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
               id="c-met"
               value={met}
               onChange={(e) => setMet(e.target.value)}
-              placeholder="e.g. PwC, Tilburg, futsal"
+              placeholder="e.g. NUS orientation, futsal"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="c-tags">Tags</Label>
+            <Input
+              id="c-tags"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="e.g. nus, business (comma-separated)"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="c-last">Last contact</Label>
               <Input
                 id="c-last"
@@ -106,7 +164,7 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
                 onChange={(e) => setLastContact(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="c-cadence">Reconnect (days)</Label>
               <Input
                 id="c-cadence"
@@ -130,15 +188,17 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="c-notes">Notes</Label>
+            <Label htmlFor="c-notes">Facts to remember</Label>
             <Textarea
               id="c-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Anything to remember"
-              rows={2}
+              placeholder="From Milan, econ student, plays tennis…"
+              rows={3}
             />
           </div>
+
+          {isEdit && <InteractionTimeline contactId={contact.id} />}
         </div>
 
         <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
@@ -167,5 +227,56 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Conversation log for a person: skim before you see them, add after you talk. */
+function InteractionTimeline({ contactId }: { contactId: string }) {
+  const interactions = useInteractions(contactId)
+  const [draft, setDraft] = useState('')
+
+  function add() {
+    const note = draft.trim()
+    if (!note) return
+    addInteraction(contactId, note)
+    setDraft('')
+    toast.success('Logged')
+  }
+
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <Label>Conversation log</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+          placeholder="What did you talk about?"
+        />
+        <Button variant="secondary" size="icon" onClick={add} aria-label="Add note">
+          <Plus className="size-4" />
+        </Button>
+      </div>
+      {interactions.length > 0 && (
+        <ul className="max-h-40 space-y-1.5 overflow-y-auto">
+          {interactions.map((i) => (
+            <li key={i.id} className="flex items-start gap-2 text-sm">
+              <span className="mt-0.5 shrink-0 font-mono text-[10px] text-muted-foreground">
+                {shortDate(i.date)}
+              </span>
+              <span className="min-w-0 flex-1">{i.note}</span>
+              <button
+                type="button"
+                aria-label="Delete note"
+                onClick={() => deleteInteraction(i.id)}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

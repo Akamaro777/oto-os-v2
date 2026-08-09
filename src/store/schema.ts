@@ -53,6 +53,51 @@ export interface Contact {
   cadenceDays?: number
   birthday?: string // YYYY-MM-DD
   ts: number
+  /** Small JPEG data-URL thumbnail (face memory). */
+  photo?: string
+  /** Comma-separated tags, e.g. "nus,business". */
+  tags?: string
+  /** Recall-quiz spaced-repetition state. */
+  quizLevel?: number
+  quizDue?: string // YYYY-MM-DD
+}
+
+/** A client/deal in the money pipeline; closed deals sum into live MRR. */
+export interface Deal {
+  id: string
+  name: string
+  mrr: number // €/month
+  status: string // 'lead' | 'talking' | 'closed' | 'lost'
+  notes?: string
+  ts: number
+}
+
+/** A visited country for the travel objective. */
+export interface CountryVisit {
+  id: string
+  name: string
+  date: string // YYYY-MM-DD
+  ts: number
+}
+
+/** One wrong GMAT question — the error log that powers Weak Spots. */
+export interface GmatError {
+  id: string
+  date: string // YYYY-MM-DD
+  section: string // 'quant' | 'verbal' | 'di'
+  topic: string
+  reason: string // 'concept' | 'careless' | 'time' | ''
+  note?: string
+  ts: number
+}
+
+/** One logged conversation with a contact (relationship memory timeline). */
+export interface Interaction {
+  id: string
+  contactId: string
+  date: string // YYYY-MM-DD
+  note: string
+  ts: number
 }
 
 export interface Idea {
@@ -230,6 +275,10 @@ export const T = {
   chat: 'chat',
   businessPlans: 'businessPlans',
   rules: 'rules',
+  deals: 'deals',
+  countries: 'countries',
+  gmatErrors: 'gmatErrors',
+  interactions: 'interactions',
 } as const
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -267,6 +316,10 @@ export const tablesSchema: TablesSchema = {
     cadenceDays: { type: 'number' },
     birthday: { type: 'string' },
     ts: { type: 'number' },
+    photo: { type: 'string' },
+    tags: { type: 'string' },
+    quizLevel: { type: 'number' },
+    quizDue: { type: 'string' },
   },
   ideas: {
     title: { type: 'string' },
@@ -378,6 +431,32 @@ export const tablesSchema: TablesSchema = {
     noon: { type: 'boolean', default: false },
     calls: { type: 'boolean', default: false },
     run: { type: 'boolean', default: false },
+  },
+  deals: {
+    name: { type: 'string' },
+    mrr: { type: 'number', default: 0 },
+    status: { type: 'string', default: 'lead' },
+    notes: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  countries: {
+    name: { type: 'string' },
+    date: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  gmatErrors: {
+    date: { type: 'string' },
+    section: { type: 'string' },
+    topic: { type: 'string' },
+    reason: { type: 'string' },
+    note: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  interactions: {
+    contactId: { type: 'string' },
+    date: { type: 'string' },
+    note: { type: 'string' },
+    ts: { type: 'number' },
   },
 }
 

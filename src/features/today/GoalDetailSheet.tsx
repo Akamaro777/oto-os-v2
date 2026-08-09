@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from 'react'
-import { Minus, Plus } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Minus, Plus, Trash2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,9 +7,13 @@ import { ProgressRing } from '@/components/ProgressRing'
 import { CountUp } from '@/components/CountUp'
 import { LineTrend } from '@/components/charts'
 import { pillarColor } from '@/lib/pillars'
+import { shortDate, todayISO } from '@/lib/dates'
 import { type NorthStar, type GoalStatus } from '@/store/northStars'
 import { setProfileNumber } from '@/store/profile'
 import { useMockExams } from '@/store/study'
+import { useAllDeals } from '@/store/deals'
+import { useCountries, addCountry, deleteCountry } from '@/store/countries'
+import { toast } from 'sonner'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
   complete: '#c9f158',
@@ -21,7 +25,6 @@ const STATUS_COLOR: Record<GoalStatus, string> = {
 
 /** Which profile value a manually-counted goal edits. */
 const COUNTER_KEY: Record<string, string> = {
-  countries: 'countriesVisited',
   bodies: 'bodiesCount',
 }
 
@@ -103,13 +106,14 @@ export function GoalDetailSheet({ star, onClose }: GoalDetailSheetProps) {
 
         {counterKey && (
           <CounterEditor
-            label={star.id === 'countries' ? 'Countries visited' : 'Count'}
+            label="Count"
             value={star.currentValue}
             color={color}
             onChange={(v) => setProfileNumber(counterKey, v)}
           />
         )}
-        {star.id === 'mrr' && <MrrEditor value={star.currentValue} color={color} />}
+        {star.id === 'mrr' && <PipelineSummary color={color} />}
+        {star.id === 'countries' && <CountriesEditor color={color} />}
 
         {series.length > 0 && (
           <div className="glass rounded-2xl p-4">
@@ -166,31 +170,79 @@ function CounterEditor({
   )
 }
 
-/** Editor for the current monthly revenue number. */
-function MrrEditor({ value, color }: { value: number; color: string }) {
-  const [draft, setDraft] = useState(String(value || ''))
-  useEffect(() => setDraft(String(value || '')), [value])
-  function commit() {
-    const n = Number(draft.replace(',', '.'))
-    if (Number.isFinite(n) && n >= 0) setProfileNumber('mrr', n)
+/** Live pipeline breakdown — MRR is the sum of closed deals (edit in Track → Money). */
+function PipelineSummary({ color }: { color: string }) {
+  const deals = useAllDeals()
+  const closed = deals.filter((d) => d.status === 'closed')
+  const talking = deals.filter((d) => d.status === 'talking').length
+  const leads = deals.filter((d) => d.status === 'lead').length
+  return (
+    <div className="glass space-y-2 rounded-2xl p-4">
+      {closed.length > 0 ? (
+        <ul className="space-y-1">
+          {closed.map((d) => (
+            <li key={d.id} className="flex items-center justify-between text-sm">
+              <span className="min-w-0 truncate">{d.name}</span>
+              <span className="shrink-0 font-mono text-[12px]" style={{ color }}>
+                €{Math.round(d.mrr).toLocaleString('en-US')}/mo
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">No paying clients yet.</p>
+      )}
+      <p className="font-mono text-[11px] text-muted-foreground">
+        Pipeline: {talking} talking · {leads} leads — manage in Track → Money
+      </p>
+    </div>
+  )
+}
+
+/** Named country log: each entry counts toward the travel goal. */
+function CountriesEditor({ color }: { color: string }) {
+  const countries = useCountries()
+  const [draft, setDraft] = useState('')
+  function add() {
+    const name = draft.trim()
+    if (!name) return
+    addCountry(name, todayISO())
+    setDraft('')
+    toast.success(`${name} added ✈️`)
   }
   return (
-    <div className="glass flex items-center justify-between gap-3 rounded-2xl p-4">
-      <span className="shrink-0 text-sm text-muted-foreground">Current €/month</span>
+    <div className="glass space-y-3 rounded-2xl p-4">
       <div className="flex items-center gap-2">
         <Input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === 'Enter' && commit()}
-          inputMode="decimal"
-          className="w-24 text-right font-mono"
-          style={{ color }}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+          placeholder="Add a country…"
         />
-        <Button variant="secondary" size="sm" onClick={commit}>
-          Set
+        <Button variant="secondary" size="icon" onClick={add} aria-label="Add country">
+          <Plus className="size-4" />
         </Button>
       </div>
+      {countries.length > 0 && (
+        <ul className="divide-y divide-border">
+          {countries.map((c) => (
+            <li key={c.id} className="flex items-center gap-2 py-1.5 text-sm">
+              <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <span className="shrink-0 font-mono text-[11px]" style={{ color }}>
+                {c.date ? shortDate(c.date) : ''}
+              </span>
+              <button
+                type="button"
+                aria-label={`Remove ${c.name}`}
+                onClick={() => deleteCountry(c.id)}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

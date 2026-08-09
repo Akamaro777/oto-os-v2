@@ -17,7 +17,19 @@ export function ContactRow({ contact, onEdit }: ContactRowProps) {
 
   return (
     <div className="flex items-center gap-3 py-3">
-      <button type="button" onClick={() => onEdit(contact)} className="min-w-0 flex-1 text-left">
+      <button
+        type="button"
+        onClick={() => onEdit(contact)}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary font-mono text-xs text-muted-foreground">
+          {contact.photo ? (
+            <img src={contact.photo} alt="" className="size-full object-cover" />
+          ) : (
+            contact.name.slice(0, 2).toUpperCase()
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{contact.name}</span>
           {bday && (
@@ -32,6 +44,7 @@ export function ContactRow({ contact, onEdit }: ContactRowProps) {
           )}
         </div>
         <p className="truncate font-mono text-[11px] text-muted-foreground">{sub}</p>
+        </span>
       </button>
       <Button
         size="sm"

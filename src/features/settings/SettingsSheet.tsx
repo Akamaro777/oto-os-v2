@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { getSetting, setSetting } from '@/store/settings'
 import { importV1 } from '@/lib/importV1'
 import { exportBackup } from '@/lib/exportData'
+import { listSnapshots, downloadSnapshot, type Snapshot } from '@/lib/backups'
 import { pull as syncPull } from '@/lib/sync'
 import { pushSupported, isPushEnabled, enablePush, disablePush } from '@/lib/push'
 import { toast } from 'sonner'
@@ -24,6 +25,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
   const [syncSecret, setSyncSecret] = useState('')
   const [pushOn, setPushOn] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleTogglePush() {
@@ -68,6 +70,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
     setSyncUrl(getSetting('syncUrl'))
     setSyncSecret(getSetting('syncSecret'))
     isPushEnabled().then(setPushOn).catch(() => setPushOn(false))
+    listSnapshots().then(setSnapshots).catch(() => setSnapshots([]))
   }, [open])
 
   function handleSave() {
@@ -226,6 +229,23 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
             <p className="text-[11px] text-muted-foreground">
               Saves everything on this device as a JSON file. Keep one somewhere safe.
             </p>
+            {snapshots.length > 0 && (
+              <div className="pt-1">
+                <p className="mb-1 text-[11px] text-muted-foreground">
+                  Automatic weekly snapshots (kept on this device):
+                </p>
+                <ul className="divide-y divide-border">
+                  {snapshots.map((s) => (
+                    <li key={s.id} className="flex items-center justify-between py-1.5">
+                      <span className="font-mono text-xs">{s.date}</span>
+                      <Button size="sm" variant="ghost" onClick={() => downloadSnapshot(s)}>
+                        <Download className="size-3.5" /> Save
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
 

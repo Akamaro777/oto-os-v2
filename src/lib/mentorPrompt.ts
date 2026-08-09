@@ -115,6 +115,29 @@ LAST 7 DAYS:
 
 PORTFOLIO: ${portStr}
 
+MONEY PIPELINE: ${(() => {
+    const deals = Object.values(store.getTable(T.deals) as Record<string, Row>)
+    if (!deals.length) return 'no deals yet - he needs leads'
+    const closed = deals.filter((d) => d.status === 'closed')
+    const mrr = closed.reduce((s, d) => s + num(d.mrr), 0)
+    return `EUR ${mrr}/mo closed (${closed.length} clients) | ${deals.filter((d) => d.status === 'talking').length} talking | ${deals.filter((d) => d.status === 'lead').length} leads | target EUR ${p('mrrTarget')}/mo by Dec 1`
+  })()}
+
+GMAT WEAK SPOTS: ${(() => {
+    const errors = Object.values(store.getTable(T.gmatErrors) as Record<string, Row>)
+    if (!errors.length) return 'no error log yet'
+    const counts: Record<string, number> = {}
+    for (const e of errors) {
+      const topic = String(e.topic ?? '')
+      if (topic) counts[topic] = (counts[topic] ?? 0) + 1
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([topic, n]) => `${topic} (${n})`)
+      .join(', ')
+  })()}
+
 ACTIVE CV MILESTONES: ${goals.map((g) => `${g.title}${g.deadline ? ' (by ' + g.deadline + ')' : ''}`).join(' | ') || 'none set'}
 UPCOMING EVENTS (14d): ${eventStr}
 IDEAS BANK: ${ideas.map((i) => i.title).join(' | ') || 'empty - needs filling'}

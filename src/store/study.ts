@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useTable } from 'tinybase/ui-react'
 import { store } from './store'
-import { T, type CvLog, type MockExam } from './schema'
+import { T, type CvLog, type MockExam, type GmatError } from './schema'
 import { newId } from '@/lib/ids'
 import { todayISO, addDaysISO } from '@/lib/dates'
 
@@ -135,4 +135,77 @@ export function addMockExam(date: string, score: number): string {
 
 export function deleteMockExam(id: string): void {
   store.delRow(T.mockExams, id)
+}
+
+/* ── GMAT error log (one row per wrong question) ── */
+
+export const GMAT_SECTIONS = ['quant', 'verbal', 'di'] as const
+export const GMAT_REASONS = ['concept', 'careless', 'time'] as const
+
+function rowToError(id: string, row: Cells): GmatError {
+  return {
+    id,
+    date: String(row.date ?? ''),
+    section: String(row.section ?? 'quant'),
+    topic: String(row.topic ?? ''),
+    reason: String(row.reason ?? ''),
+    note: row.note ? String(row.note) : undefined,
+    ts: Number(row.ts ?? 0),
+  }
+}
+
+export function useGmatErrors(): GmatError[] {
+  const table = useTable(T.gmatErrors, store) as Record<string, Cells>
+  return useMemo(
+    () => Object.entries(table).map(([id, row]) => rowToError(id, row)).sort((a, b) => b.date.localeCompare(a.date)),
+    [table],
+  )
+}
+
+export interface GmatErrorInput {
+  date: string
+  section: string
+  topic: string
+  reason?: string
+  note?: string
+}
+
+export function addGmatError(input: GmatErrorInput): string {
+  const id = newId()
+  const row: Cells = {
+    date: input.date,
+    section: (GMAT_SECTIONS as readonly string[]).includes(input.section) ? input.section : 'quant',
+    topic: input.topic.trim().toLowerCase(),
+    reason: (GMAT_REASONS as readonly string[]).includes(input.reason ?? '') ? (input.reason as string) : '',
+    ts: Date.now(),
+  }
+  if (input.note?.trim()) row.note = input.note.trim()
+  store.setRow(T.gmatErrors, id, row as Record<string, string | number | boolean>)
+  return id
+}
+
+export function deleteGmatError(id: string): void {
+  store.delRow(T.gmatErrors, id)
+}
+
+export interface WeakSpot {
+  topic: string
+  section: string
+  total: number
+  byReason: Record<string, number>
+}
+
+/** Error counts grouped by topic, worst first — the Weak Spots aggregation. */
+export function aggregateWeakSpots(errors: GmatError[]): WeakSpot[] {
+  const map = new Map<string, WeakSpot>()
+  for (const e of errors) {
+    if (!e.topic) continue
+    const key = `${e.section}:${e.topic}`
+    const spot = map.get(key) ?? { topic: e.topic, section: e.section, total: 0, byReason: {} }
+    spot.total++
+    const reason = e.reason || 'unknown'
+    spot.byReason[reason] = (spot.byReason[reason] ?? 0) + 1
+    map.set(key, spot)
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total)
 }

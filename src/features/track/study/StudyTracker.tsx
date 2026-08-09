@@ -29,6 +29,7 @@ import {
   addMockExam,
   deleteMockExam,
 } from '@/store/study'
+import { GmatCountdownCard, WeakSpotsCard, GmatPhotoButton } from './GmatCards'
 import { toast } from 'sonner'
 
 const CV = PILLAR_META.cv.color
@@ -55,6 +56,10 @@ export function StudyTracker() {
   return (
     <div className="space-y-4">
       <DayStepper date={date} onChange={setDate} />
+
+      <GmatCountdownCard />
+
+      <WeakSpotsCard />
 
       <TrackerCard title="Study hours">
         <div className="flex items-center justify-between">
@@ -85,7 +90,7 @@ export function StudyTracker() {
         </div>
       </TrackerCard>
 
-      <TrackerCard title="Practice set">
+      <TrackerCard title="Practice set" action={<GmatPhotoButton date={date} />}>
         <div className="grid grid-cols-3 gap-3">
           <PracticeField
             id="pr-problems"

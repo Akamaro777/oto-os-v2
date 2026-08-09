@@ -14,9 +14,20 @@ export const MODELS = {
   sonnet: 'claude-sonnet-4-6',
 } as const
 
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+
 export interface AnthropicMessage {
   role: 'user' | 'assistant'
-  content: string
+  content: string | ContentBlock[]
+}
+
+/** Wrap a JPEG data-URL as an image content block for vision requests. */
+export function imageBlock(dataUrl: string): ContentBlock {
+  const [head, data] = dataUrl.split(',', 2)
+  const mediaType = head.match(/^data:([^;]+)/)?.[1] ?? 'image/jpeg'
+  return { type: 'image', source: { type: 'base64', media_type: mediaType, data } }
 }
 
 interface MessagesRequest {

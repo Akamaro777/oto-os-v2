@@ -16,6 +16,7 @@ import { useAllTasks, filterTasks, sortTasks } from '@/store/tasks'
 import { useAllContacts } from '@/store/people'
 import { GoalDetailSheet } from './GoalDetailSheet'
 import { NonNegotiables } from './NonNegotiables'
+import { WeeklyReview } from './WeeklyReview'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
   complete: '#c9f158',
@@ -124,6 +125,11 @@ export function TodayScreen() {
         {/* Daily non-negotiables */}
         <StaggerItem>
           <NonNegotiables date={today} />
+        </StaggerItem>
+
+        {/* Sunday weekly review */}
+        <StaggerItem>
+          <WeeklyReview date={today} />
         </StaggerItem>
 
         {/* Now / Next */}

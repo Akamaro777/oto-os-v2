@@ -27,6 +27,7 @@ import {
   addPortfolioFromT212,
   deletePortfolioEntry,
 } from '@/store/portfolio'
+import { DealsCard } from './DealsCard'
 import { toast } from 'sonner'
 
 const MONEY = PILLAR_META.money.color
@@ -60,6 +61,8 @@ export function MoneyTracker() {
 
   return (
     <div className="space-y-4">
+      <DealsCard />
+
       <TrackerCard title="Net worth">
         <div className="flex items-end justify-between">
           <div>
