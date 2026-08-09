@@ -52,6 +52,88 @@ export function GmatCountdownCard() {
   )
 }
 
+/** Official score-report profile: section scores + GMAC's weakest skill areas. */
+export function ExamProfileCard() {
+  const date = getProfileString('examDate')
+  const total = getProfileNumber('examTotal')
+  if (!date || !total) return null
+
+  const sections = [
+    { label: 'Quant', score: getProfileNumber('examQuant'), pct: getProfileNumber('examQuantPct') },
+    { label: 'Verbal', score: getProfileNumber('examVerbal'), pct: getProfileNumber('examVerbalPct') },
+    { label: 'Data Insights', score: getProfileNumber('examDi'), pct: getProfileNumber('examDiPct') },
+  ]
+  const skills = getProfileString('examSkills')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const [name, pct] = s.split(':')
+      return { name, pct: Number(pct) || 0 }
+    })
+    .sort((a, b) => a.pct - b.pct)
+
+  // Colour by percentile: red below 30, amber below 60, else the study blue.
+  const colorFor = (pct: number) => (pct < 30 ? '#f36a5a' : pct < 60 ? '#fbbf24' : CV)
+
+  return (
+    <TrackerCard
+      title="Official exam"
+      action={<span className="font-mono text-[11px] text-muted-foreground">{date}</span>}
+    >
+      <div className="mb-3 flex items-baseline gap-2">
+        <span className="font-serif text-4xl" style={{ color: CV, textShadow: `0 0 24px ${CV}44` }}>
+          {total}
+        </span>
+        <span className="font-mono text-sm text-muted-foreground">
+          {getProfileNumber('examTotalPct')}th pct
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {sections.map((s) => (
+          <div key={s.label} className="rounded-xl bg-secondary/40 px-2 py-2 text-center">
+            <p className="font-mono text-[9px] uppercase tracking-wide text-muted-foreground">
+              {s.label}
+            </p>
+            <p className="mt-0.5 font-mono text-lg" style={{ color: colorFor(s.pct) }}>
+              {s.score}
+            </p>
+            <p className="font-mono text-[10px] text-muted-foreground">{s.pct}th</p>
+          </div>
+        ))}
+      </div>
+
+      {skills.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            Weakest skill areas
+          </p>
+          <ul className="space-y-1.5">
+            {skills.slice(0, 6).map((s) => (
+              <li key={s.name} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-[13px]">{s.name}</span>
+                <div className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${s.pct}%`, backgroundColor: colorFor(s.pct) }}
+                  />
+                </div>
+                <span
+                  className="w-8 shrink-0 text-right font-mono text-[11px]"
+                  style={{ color: colorFor(s.pct) }}
+                >
+                  {s.pct}th
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </TrackerCard>
+  )
+}
+
 /** Error-log aggregation: which topics are bleeding points and why. */
 export function WeakSpotsCard() {
   const errors = useGmatErrors()

@@ -30,11 +30,20 @@ export function mergeImport(raw: unknown): { rows: number; tables: string[] } | 
   const data = raw as {
     app?: string
     tables?: Record<string, Record<string, Record<string, unknown>>>
+    values?: Record<string, unknown>
   }
-  if (data.app !== 'oto-os-v2' || typeof data.tables !== 'object' || data.tables == null) return null
+  if (data.app !== 'oto-os-v2') return null
+  if (typeof data.tables !== 'object' && typeof data.values !== 'object') return null
   let rows = 0
   const touched: string[] = []
   store.transaction(() => {
+    for (const [key, value] of Object.entries(data.values ?? {})) {
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        store.setValue(key, value)
+        rows++
+      }
+    }
+    if (Object.keys(data.values ?? {}).length) touched.push('settings')
     for (const [tableId, table] of Object.entries(data.tables ?? {})) {
       if (typeof table !== 'object' || table == null) continue
       let count = 0

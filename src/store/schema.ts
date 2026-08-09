@@ -512,6 +512,18 @@ export const valuesSchema: ValuesSchema = {
   'profile.bodiesTargetDate': { type: 'string', default: '2026-12-01' },
   'profile.bodiesStartDate': { type: 'string', default: '2026-08-06' },
   'profile.callsDailyTarget': { type: 'number', default: 70 },
+  // Official exam profile (from the GMAC score report)
+  'profile.examDate': { type: 'string', default: '' },
+  'profile.examTotal': { type: 'number', default: 0 },
+  'profile.examTotalPct': { type: 'number', default: 0 },
+  'profile.examQuant': { type: 'number', default: 0 },
+  'profile.examQuantPct': { type: 'number', default: 0 },
+  'profile.examVerbal': { type: 'number', default: 0 },
+  'profile.examVerbalPct': { type: 'number', default: 0 },
+  'profile.examDi': { type: 'number', default: 0 },
+  'profile.examDiPct': { type: 'number', default: 0 },
+  /** "Skill:percentile" pairs, comma-separated, weakest first. */
+  'profile.examSkills': { type: 'string', default: '' },
   // Settings — secrets live here at runtime only (never committed)
   'settings.theme': { type: 'string', default: 'dark' },
   'settings.apiKey': { type: 'string', default: '' },

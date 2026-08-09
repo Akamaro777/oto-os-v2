@@ -29,7 +29,7 @@ import {
   addMockExam,
   deleteMockExam,
 } from '@/store/study'
-import { GmatCountdownCard, WeakSpotsCard, GmatPhotoButton } from './GmatCards'
+import { GmatCountdownCard, ExamProfileCard, WeakSpotsCard, GmatPhotoButton } from './GmatCards'
 import { toast } from 'sonner'
 
 const CV = PILLAR_META.cv.color
@@ -58,6 +58,8 @@ export function StudyTracker() {
       <DayStepper date={date} onChange={setDate} />
 
       <GmatCountdownCard />
+
+      <ExamProfileCard />
 
       <WeakSpotsCard />
 
