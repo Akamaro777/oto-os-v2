@@ -53,25 +53,28 @@ export function RevenueCard() {
         />
       </div>
 
-      {/* Entry */}
-      <div className="mt-4 flex items-end gap-2">
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <Label htmlFor="rev-month">Month</Label>
-          <Input id="rev-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+      {/* Entry — two equal columns, then a full-width save (native month inputs
+          have a fixed intrinsic width, so the columns need min-w-0). */}
+      <div className="mt-4 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 space-y-1.5">
+            <Label htmlFor="rev-month">Month</Label>
+            <Input id="rev-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          </div>
+          <div className="min-w-0 space-y-1.5">
+            <Label htmlFor="rev-amount">Revenue (€)</Label>
+            <Input
+              id="rev-amount"
+              type="text"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && save()}
+              placeholder="e.g. 1200"
+            />
+          </div>
         </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <Label htmlFor="rev-amount">Revenue (€)</Label>
-          <Input
-            id="rev-amount"
-            type="text"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && save()}
-            placeholder="e.g. 1200"
-          />
-        </div>
-        <Button variant="secondary" onClick={save}>
+        <Button variant="secondary" className="w-full" onClick={save}>
           Save
         </Button>
       </div>

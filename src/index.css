@@ -203,7 +203,8 @@
     /* Native date/time pickers: iOS WebKit gives them a fixed intrinsic width
        and centered text, which overflows side-by-side grid columns. */
     input[type='date'],
-    input[type='time'] {
+    input[type='time'],
+    input[type='month'] {
         -webkit-appearance: none;
         appearance: none;
     }
@@ -211,7 +212,8 @@
         text-align: left;
     }
     input[type='date']::-webkit-calendar-picker-indicator,
-    input[type='time']::-webkit-calendar-picker-indicator {
+    input[type='time']::-webkit-calendar-picker-indicator,
+    input[type='month']::-webkit-calendar-picker-indicator {
         margin-inline-start: 0;
     }
 }
