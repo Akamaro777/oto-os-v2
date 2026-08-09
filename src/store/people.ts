@@ -20,6 +20,8 @@ function rowToContact(id: string, row: Cells): Contact {
     ts: Number(row.ts ?? 0),
     photo: row.photo ? String(row.photo) : undefined,
     tags: row.tags ? String(row.tags) : undefined,
+    category: row.category ? String(row.category) : undefined,
+    instagram: row.instagram ? String(row.instagram) : undefined,
     quizLevel: row.quizLevel != null ? Number(row.quizLevel) : undefined,
     quizDue: row.quizDue ? String(row.quizDue) : undefined,
   }
@@ -51,6 +53,8 @@ export interface ContactInput {
   notes?: string
   photo?: string
   tags?: string
+  category?: string
+  instagram?: string
 }
 
 export function createContact(input: ContactInput): string {
@@ -63,6 +67,8 @@ export function createContact(input: ContactInput): string {
   if (input.notes?.trim()) row.notes = input.notes.trim()
   if (input.photo) row.photo = input.photo
   if (input.tags?.trim()) row.tags = input.tags.trim()
+  if (input.category?.trim()) row.category = input.category.trim()
+  if (input.instagram?.trim()) row.instagram = input.instagram.trim().replace(/^@/, '')
   store.setRow(T.contacts, id, row as Record<string, string | number | boolean>)
   return id
 }
@@ -75,6 +81,8 @@ export function updateContact(id: string, patch: ContactInput): void {
   setOrClearString(id, 'notes', patch.notes)
   setOrClearString(id, 'photo', patch.photo)
   setOrClearString(id, 'tags', patch.tags)
+  setOrClearString(id, 'category', patch.category)
+  setOrClearString(id, 'instagram', patch.instagram?.replace(/^@/, ''))
   if (patch.cadenceDays && patch.cadenceDays > 0) {
     store.setCell(T.contacts, id, 'cadenceDays', patch.cadenceDays)
   } else {

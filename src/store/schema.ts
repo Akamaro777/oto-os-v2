@@ -57,6 +57,10 @@ export interface Contact {
   photo?: string
   /** Comma-separated tags, e.g. "nus,business". */
   tags?: string
+  /** One of PEOPLE_CATEGORIES (see lib/peopleCategories). */
+  category?: string
+  /** Instagram handle, without the @. */
+  instagram?: string
   /** Recall-quiz spaced-repetition state. */
   quizLevel?: number
   quizDue?: string // YYYY-MM-DD
@@ -69,6 +73,14 @@ export interface Deal {
   mrr: number // €/month
   status: string // 'lead' | 'talking' | 'closed' | 'lost'
   notes?: string
+  ts: number
+}
+
+/** A month of actual business revenue (rowId = YYYY-MM). */
+export interface RevenueMonth {
+  month: string // YYYY-MM
+  amount: number
+  note?: string
   ts: number
 }
 
@@ -277,6 +289,7 @@ export const T = {
   rules: 'rules',
   deals: 'deals',
   countries: 'countries',
+  revenue: 'revenue',
   gmatErrors: 'gmatErrors',
   interactions: 'interactions',
 } as const
@@ -318,6 +331,8 @@ export const tablesSchema: TablesSchema = {
     ts: { type: 'number' },
     photo: { type: 'string' },
     tags: { type: 'string' },
+    category: { type: 'string' },
+    instagram: { type: 'string' },
     quizLevel: { type: 'number' },
     quizDue: { type: 'string' },
   },
@@ -437,6 +452,12 @@ export const tablesSchema: TablesSchema = {
     mrr: { type: 'number', default: 0 },
     status: { type: 'string', default: 'lead' },
     notes: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  revenue: {
+    month: { type: 'string' },
+    amount: { type: 'number', default: 0 },
+    note: { type: 'string' },
     ts: { type: 'number' },
   },
   countries: {

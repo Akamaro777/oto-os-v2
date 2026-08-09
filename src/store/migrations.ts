@@ -9,7 +9,10 @@ import { T, type Priority } from './schema'
  * Each step must only run for stores below its version, and later steps must
  * never reset manual counters (mrr, countriesVisited, bodiesCount).
  */
-const MILESTONES_VERSION = 3
+const MILESTONES_VERSION = 4
+
+/** The day Oto restarts everything: same goals, clean slate. */
+const RESET_START = '2026-08-11'
 
 /** Kickoff tasks for the Aug–Dec 2026 milestone reset, in do-first order. */
 const SEED_TASKS: Array<{ id: string; title: string; priority: Priority; category: string }> = [
@@ -64,6 +67,35 @@ export function runMigrations(): void {
       store.setValue('profile.bizCumulativeDate', '2026-12-01')
       store.setValue('profile.bizCumulativeTarget', 468)
       store.setValue('profile.portfolioTargetDate', '2026-12-01')
+    }
+
+    if (v < 4) {
+      // v4 — restart every objective from Aug 11, goals unchanged.
+      store.setValue('profile.mrrStartDate', RESET_START)
+      store.setValue('profile.countriesStartDate', RESET_START)
+      store.setValue('profile.bodiesStartDate', RESET_START)
+      store.setValue('profile.bizCumulativeStart', RESET_START)
+      store.setValue('profile.bodiesCount', 0)
+      store.setValue('profile.mrr', 0)
+      store.setValue('profile.countriesVisited', 0)
+      // GMAT moved to Sep 30; the rest still land Dec 1.
+      store.setValue('profile.gmatTargetDate', '2026-09-30')
+      store.setValue('profile.gmatScoreTargetDate', '2026-09-30')
+      store.setValue('profile.mrrTargetDate', '2026-12-01')
+      store.setValue('profile.countriesTargetDate', '2026-12-01')
+      store.setValue('profile.bodiesTargetDate', '2026-12-01')
+      store.setValue('profile.bizCumulativeDate', '2026-12-01')
+
+      // Counters restart empty; the GMAT error log and score report are kept.
+      store.delTable(T.countries)
+      store.delTable(T.revenue)
+      store.delTable(T.deals)
+      // Progress logs from before the restart.
+      store.delTable(T.rules)
+      store.delTable(T.blocks)
+      store.delTable(T.top3)
+      // Projects were removed from the app.
+      store.delTable('projects')
     }
 
     store.setValue('profile.milestonesVersion', MILESTONES_VERSION)

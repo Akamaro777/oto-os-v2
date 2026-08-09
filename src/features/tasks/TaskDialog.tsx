@@ -21,7 +21,6 @@ import {
 import { PILLARS, PRIORITIES, type Priority, type Task } from '@/store/schema'
 import { PILLAR_META } from '@/lib/pillars'
 import { createTask, updateTask, deleteTask } from '@/store/tasks'
-import { useAllProjects } from '@/store/projects'
 import { toast } from 'sonner'
 
 interface TaskDialogProps {
@@ -37,14 +36,11 @@ const NONE = '__none__'
 
 export function TaskDialog({ open, onOpenChange, task, defaultDue }: TaskDialogProps) {
   const isEdit = task != null
-  const projects = useAllProjects()
-  const activeProjects = projects.filter((p) => !p.archived)
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [priority, setPriority] = useState<Priority>('med')
   const [due, setDue] = useState('')
   const [category, setCategory] = useState<string>(NONE)
-  const [projectId, setProjectId] = useState<string>(NONE)
 
   // Reset the form each time the dialog opens.
   useEffect(() => {
@@ -54,7 +50,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultDue }: TaskDialogP
     setPriority(task?.priority ?? 'med')
     setDue(task?.due ?? defaultDue ?? '')
     setCategory(task?.category ?? NONE)
-    setProjectId(task?.projectId ?? NONE)
   }, [open, task, defaultDue])
 
   function handleSave() {
@@ -69,7 +64,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultDue }: TaskDialogP
       priority,
       due,
       category: category === NONE ? '' : category,
-      projectId: projectId === NONE ? '' : projectId,
     }
     if (isEdit) {
       updateTask(task.id, fields)
@@ -163,25 +157,6 @@ export function TaskDialog({ open, onOpenChange, task, defaultDue }: TaskDialogP
               </SelectContent>
             </Select>
           </div>
-
-          {activeProjects.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Project</Label>
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>— none —</SelectItem>
-                  {activeProjects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="task-notes">Notes</Label>

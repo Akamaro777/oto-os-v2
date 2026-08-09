@@ -16,6 +16,7 @@ import { useAllTasks, filterTasks, sortTasks } from '@/store/tasks'
 import { useAllContacts } from '@/store/people'
 import { GoalDetailSheet } from './GoalDetailSheet'
 import { NonNegotiables } from './NonNegotiables'
+import { StudyPlanCard } from './StudyPlanCard'
 import { WeeklyReview } from './WeeklyReview'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
@@ -120,6 +121,11 @@ export function TodayScreen() {
             )
           })}
         </div>
+        </StaggerItem>
+
+        {/* Today's GMAT session */}
+        <StaggerItem>
+          <StudyPlanCard date={today} />
         </StaggerItem>
 
         {/* Daily non-negotiables */}

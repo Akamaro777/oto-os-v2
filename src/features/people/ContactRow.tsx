@@ -1,8 +1,9 @@
-import { Cake } from 'lucide-react'
+import { Cake, AtSign } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { type Contact } from '@/store/schema'
 import { logTouch } from '@/store/people'
 import { reconnectDue, birthdaySoon, lastContactLabel } from '@/lib/people'
+import { categoryMeta } from '@/lib/peopleCategories'
 import { toast } from 'sonner'
 
 interface ContactRowProps {
@@ -22,7 +23,10 @@ export function ContactRow({ contact, onEdit }: ContactRowProps) {
         onClick={() => onEdit(contact)}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
-        <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary font-mono text-xs text-muted-foreground">
+        <span
+          className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary font-mono text-xs text-muted-foreground"
+          style={{ boxShadow: `0 0 0 1.5px ${categoryMeta(contact.category).color}66` }}
+        >
           {contact.photo ? (
             <img src={contact.photo} alt="" className="size-full object-cover" />
           ) : (
@@ -43,7 +47,10 @@ export function ContactRow({ contact, onEdit }: ContactRowProps) {
             </span>
           )}
         </div>
-        <p className="truncate font-mono text-[11px] text-muted-foreground">{sub}</p>
+        <p className="flex items-center gap-1 truncate font-mono text-[11px] text-muted-foreground">
+          {contact.instagram && <AtSign className="size-2.5 shrink-0" />}
+          {sub}
+        </p>
         </span>
       </button>
       <Button

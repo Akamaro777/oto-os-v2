@@ -33,3 +33,29 @@ export function addCountry(name: string, date = todayISO()): string {
 export function deleteCountry(id: string): void {
   store.delRow(T.countries, id)
 }
+
+/**
+ * Bulk-add countries from a pasted list (one per line, or comma/semicolon
+ * separated). Case-insensitive dedupe against what's already logged.
+ * Returns how many were actually added.
+ */
+export function addCountriesBulk(text: string, date = todayISO()): number {
+  const existing = new Set(
+    Object.values(store.getTable(T.countries)).map((r) => String(r.name ?? '').trim().toLowerCase()),
+  )
+  const names = text
+    .split(/[\n,;]+/)
+    .map((n) => n.replace(/^[\s\-*\d.)]+/, '').trim())
+    .filter(Boolean)
+  let added = 0
+  store.transaction(() => {
+    for (const name of names) {
+      const key = name.toLowerCase()
+      if (existing.has(key)) continue
+      existing.add(key)
+      store.setRow(T.countries, newId(), { name, date, ts: Date.now() + added })
+      added++
+    }
+  })
+  return added
+}

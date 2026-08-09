@@ -12,7 +12,8 @@ import { type NorthStar, type GoalStatus } from '@/store/northStars'
 import { setProfileNumber } from '@/store/profile'
 import { useMockExams } from '@/store/study'
 import { useAllDeals } from '@/store/deals'
-import { useCountries, addCountry, deleteCountry } from '@/store/countries'
+import { useCountries, addCountry, deleteCountry, addCountriesBulk } from '@/store/countries'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
@@ -203,6 +204,9 @@ function PipelineSummary({ color }: { color: string }) {
 function CountriesEditor({ color }: { color: string }) {
   const countries = useCountries()
   const [draft, setDraft] = useState('')
+  const [bulk, setBulk] = useState('')
+  const [bulkOpen, setBulkOpen] = useState(false)
+
   function add() {
     const name = draft.trim()
     if (!name) return
@@ -210,6 +214,14 @@ function CountriesEditor({ color }: { color: string }) {
     setDraft('')
     toast.success(`${name} added ✈️`)
   }
+
+  function importBulk() {
+    const added = addCountriesBulk(bulk)
+    setBulk('')
+    setBulkOpen(false)
+    toast.success(added ? `${added} countries added ✈️` : 'Nothing new to add')
+  }
+
   return (
     <div className="glass space-y-3 rounded-2xl p-4">
       <div className="flex items-center gap-2">
@@ -223,6 +235,34 @@ function CountriesEditor({ color }: { color: string }) {
           <Plus className="size-4" />
         </Button>
       </div>
+
+      {bulkOpen ? (
+        <div className="space-y-2">
+          <Textarea
+            value={bulk}
+            onChange={(e) => setBulk(e.target.value)}
+            rows={4}
+            placeholder={'Paste your list from Bean — one country per line'}
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" className="flex-1" onClick={() => setBulkOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" className="flex-1" onClick={importBulk}>
+              Import list
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setBulkOpen(true)}
+          className="w-full text-left font-mono text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+        >
+          Paste a list from Bean →
+        </button>
+      )}
       {countries.length > 0 && (
         <ul className="divide-y divide-border">
           {countries.map((c) => (

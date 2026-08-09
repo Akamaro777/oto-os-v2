@@ -13,13 +13,15 @@ import {
   reconnectDueContacts,
   quizDueContacts,
 } from '@/store/people'
+import { PEOPLE_CATEGORIES, categoryMeta } from '@/lib/peopleCategories'
 import { ContactRow } from './ContactRow'
 import { ContactDialog } from './ContactDialog'
 import { QuizSheet } from './QuizSheet'
 
-/** Match against name, context, tags and remembered facts. */
+/** Match against name, context, group, handle, tags and remembered facts. */
 function matches(c: Contact, q: string): boolean {
-  const hay = `${c.name} ${c.met ?? ''} ${c.tags ?? ''} ${c.notes ?? ''}`.toLowerCase()
+  const group = categoryMeta(c.category).label
+  const hay = `${c.name} ${c.met ?? ''} ${group} ${c.instagram ?? ''} ${c.tags ?? ''} ${c.notes ?? ''}`.toLowerCase()
   return q.split(/\s+/).every((word) => hay.includes(word))
 }
 
@@ -30,11 +32,26 @@ export function PeopleScreen() {
   const [quizOpen, setQuizOpen] = useState(false)
   const [editing, setEditing] = useState<Contact | undefined>(undefined)
   const [query, setQuery] = useState('')
+  const [group, setGroup] = useState<string>('all')
 
   const q = query.trim().toLowerCase()
-  const filtered = useMemo(() => (q ? contacts.filter((c) => matches(c, q)) : contacts), [contacts, q])
+  const filtered = useMemo(() => {
+    let list = q ? contacts.filter((c) => matches(c, q)) : contacts
+    if (group !== 'all') list = list.filter((c) => (c.category ?? 'other') === group)
+    return list
+  }, [contacts, q, group])
   const sorted = useMemo(() => sortByRecency(filtered), [filtered])
-  const due = useMemo(() => (q ? [] : reconnectDueContacts(contacts)), [contacts, q])
+  const due = useMemo(() => (q || group !== 'all' ? [] : reconnectDueContacts(contacts)), [contacts, q, group])
+
+  // Only show group chips that actually have people in them.
+  const groupCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const c of contacts) {
+      const id = c.category ?? 'other'
+      counts[id] = (counts[id] ?? 0) + 1
+    }
+    return counts
+  }, [contacts])
   const quizDue = useMemo(() => quizDueContacts(contacts, todayISO()).length, [contacts])
 
   return (
@@ -76,6 +93,21 @@ export function PeopleScreen() {
               <Brain className="size-4 text-pillar-social" />
               {quizDue > 0 && <span className="font-mono text-xs">{quizDue}</span>}
             </Button>
+          </div>
+
+          {/* Group filter */}
+          <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
+            <GroupChip label="All" count={contacts.length} active={group === 'all'} onClick={() => setGroup('all')} />
+            {PEOPLE_CATEGORIES.filter((c) => groupCounts[c.id]).map((c) => (
+              <GroupChip
+                key={c.id}
+                label={c.label}
+                count={groupCounts[c.id]}
+                color={c.color}
+                active={group === c.id}
+                onClick={() => setGroup(c.id)}
+              />
+            ))}
           </div>
 
           {due.length > 0 && (
@@ -120,5 +152,35 @@ export function PeopleScreen() {
         process={captureContact}
       />
     </Screen>
+  )
+}
+
+function GroupChip({
+  label,
+  count,
+  color,
+  active,
+  onClick,
+}: {
+  label: string
+  count: number
+  color?: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+        active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'
+      }`}
+    >
+      {color && !active && (
+        <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
+      )}
+      {label}
+      <span className="font-mono text-[10px] opacity-70">{count}</span>
+    </button>
   )
 }

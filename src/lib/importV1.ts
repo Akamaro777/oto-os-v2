@@ -101,7 +101,6 @@ export function importV1(raw: unknown): ImportSummary {
       [T.mockExams, 'mockExams'],
       [T.contacts, 'contacts'],
       [T.tasks, 'tasks'],
-      [T.projects, 'projects'],
       [T.inbox, 'inbox'],
     ] as const) {
       asArr(data[srcKey]).forEach((item, i) => {

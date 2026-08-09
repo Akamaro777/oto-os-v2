@@ -16,9 +16,6 @@ const TodayScreen = lazy(() =>
 const PlanScreen = lazy(() =>
   import('@/features/plan/PlanScreen').then((m) => ({ default: m.PlanScreen })),
 )
-const ProjectsScreen = lazy(() =>
-  import('@/features/projects/ProjectsScreen').then((m) => ({ default: m.ProjectsScreen })),
-)
 const PeopleScreen = lazy(() =>
   import('@/features/people/PeopleScreen').then((m) => ({ default: m.PeopleScreen })),
 )
@@ -32,7 +29,6 @@ const MentorScreen = lazy(() =>
 const SCREENS: Record<TabId, React.LazyExoticComponent<() => React.JSX.Element>> = {
   today: TodayScreen,
   plan: PlanScreen,
-  projects: ProjectsScreen,
   people: PeopleScreen,
   track: TrackScreen,
   mentor: MentorScreen,

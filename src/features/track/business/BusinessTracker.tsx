@@ -21,6 +21,7 @@ import { getProfileNumber } from '@/store/profile'
 import { YearHeatmap } from '@/components/YearHeatmap'
 import { useIdeas, addIdea, deleteIdea } from '@/store/business'
 import { useCvLog, setColdCalls, useColdCallsSeries, useColdCallsMap } from '@/store/study'
+import { RevenueCard } from './RevenueCard'
 import { toast } from 'sonner'
 
 const MONEY = PILLAR_META.money.color
@@ -39,6 +40,8 @@ export function BusinessTracker() {
   return (
     <div className="space-y-4">
       <DayStepper date={date} onChange={setDate} />
+
+      <RevenueCard />
 
       <TrackerCard title="Cold calls">
         <div className="flex items-center justify-between">

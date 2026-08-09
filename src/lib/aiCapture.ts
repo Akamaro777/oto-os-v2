@@ -11,13 +11,12 @@ import { T } from '@/store/schema'
 import { todayISO, tomorrowISO } from './dates'
 import { createTask } from '@/store/tasks'
 import { createBlock, setTop3 } from '@/store/planner'
-import { createProject, type ProjectInput } from '@/store/projects'
 import { createContact, type ContactInput } from '@/store/people'
 import { setBodyNumber } from '@/store/body'
 import { setBusinessHours } from '@/store/business'
 import { setStudyHours, setColdCalls } from '@/store/study'
 import { setSocialRating } from '@/store/social'
-import type { Priority, ProjectStatus } from '@/store/schema'
+import type { Priority } from '@/store/schema'
 
 const PILLAR_HINT = `"category" must be one of: personal, body, social, money, study.`
 
@@ -200,40 +199,14 @@ Build the strongest realistic day IN OTO'S OWN STYLE: study the history above an
   return applyPlanData(data, date)
 }
 
-/* ── New project ── */
-
-export async function captureProject(text: string): Promise<string> {
-  const system = `You turn a spoken project description into structured fields.
-Return ONLY JSON: {"name": string (short project name), "status": "idea"|"active"|"paused"|"done",
-"category": string, "nextAction": string (the very next concrete step), "notes": string (context worth keeping), "link": string ("" if none)}.
-${PILLAR_HINT} No prose.`
-  const data = await extract(system, text)
-  const name = str(data.name)
-  if (!name) throw new AnthropicError('No project name detected.')
-  const status = (['idea', 'active', 'paused', 'done'] as const).includes(
-    data.status as ProjectStatus,
-  )
-    ? (data.status as ProjectStatus)
-    : 'idea'
-  const input: ProjectInput = {
-    name,
-    status,
-    category: str(data.category) || 'money',
-    nextAction: str(data.nextAction),
-    notes: str(data.notes),
-    link: str(data.link),
-  }
-  createProject(input)
-  return `Project "${name}" created${input.nextAction ? ` · next: ${input.nextAction}` : ''}`
-}
-
 /* ── New person ── */
 
 export async function captureContact(text: string): Promise<string> {
   const system = `You turn a spoken description of a person into CRM fields. This powers a memory system — capture EVERY fact mentioned (job, hometown, hobbies, plans, family, anything) so the user can recall this person later.
 Return ONLY JSON: {"name": string, "met": string (how/where met, short), "cadenceDays": number (reconnect interval in days, 0 if not mentioned),
 "birthday": string ("MM-DD" or ""), "notes": string (all facts worth remembering, one per line, "" if none),
-"tags": string[] (1-3 short lowercase context tags like "nus", "business", "dating", "football"; [] if unclear)}. No prose.`
+"tags": string[] (1-3 short lowercase context tags; [] if unclear),
+"category": one of "gym"|"dorm"|"approached"|"nus"|"smu"|"street"|"business"|"other" (where/how they were met; "approached" means a girl he approached; "other" if unclear)}. No prose.`
   const data = await extract(system, text)
   const name = str(data.name)
   if (!name) throw new AnthropicError('No name detected.')
@@ -244,6 +217,9 @@ Return ONLY JSON: {"name": string, "met": string (how/where met, short), "cadenc
     birthday: /^\d{2}-\d{2}$/.test(str(data.birthday)) ? str(data.birthday) : '',
     notes: str(data.notes),
     tags: arr(data.tags).map(str).filter(Boolean).slice(0, 3).join(','),
+    category: ['gym', 'dorm', 'approached', 'nus', 'smu', 'street', 'business'].includes(str(data.category))
+      ? str(data.category)
+      : 'other',
     lastContact: todayISO(),
   }
   createContact(input)

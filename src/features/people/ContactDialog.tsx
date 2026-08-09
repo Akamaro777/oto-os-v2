@@ -20,7 +20,15 @@ import {
   addInteraction,
   deleteInteraction,
 } from '@/store/people'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { fileToJpegDataURL } from '@/lib/images'
+import { PEOPLE_CATEGORIES } from '@/lib/peopleCategories'
 import { todayISO, shortDate } from '@/lib/dates'
 import { toast } from 'sonner'
 
@@ -39,6 +47,8 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
   const [birthday, setBirthday] = useState('')
   const [notes, setNotes] = useState('')
   const [tags, setTags] = useState('')
+  const [category, setCategory] = useState('other')
+  const [instagram, setInstagram] = useState('')
   const [photo, setPhoto] = useState('')
   const photoRef = useRef<HTMLInputElement>(null)
 
@@ -51,6 +61,8 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
     setBirthday(contact?.birthday ?? '')
     setNotes(contact?.notes ?? '')
     setTags(contact?.tags ?? '')
+    setCategory(contact?.category ?? 'other')
+    setInstagram(contact?.instagram ?? '')
     setPhoto(contact?.photo ?? '')
   }, [open, contact, isEdit])
 
@@ -76,6 +88,8 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
       birthday,
       notes,
       tags,
+      category,
+      instagram,
       photo,
     }
     if (isEdit) {
@@ -145,12 +159,44 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
           </div>
 
           <div className="space-y-1.5">
+            <Label>Group</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PEOPLE_CATEGORIES.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    <span
+                      className="mr-2 inline-block size-2 rounded-full align-middle"
+                      style={{ backgroundColor: c.color }}
+                    />
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="c-ig">Instagram</Label>
+            <Input
+              id="c-ig"
+              value={instagram}
+              onChange={(e) => setInstagram(e.target.value)}
+              placeholder="@handle"
+              autoCapitalize="none"
+              autoCorrect="off"
+            />
+          </div>
+
+          <div className="space-y-1.5">
             <Label htmlFor="c-tags">Tags</Label>
             <Input
               id="c-tags"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              placeholder="e.g. nus, business (comma-separated)"
+              placeholder="e.g. tennis, milan (comma-separated)"
             />
           </div>
 

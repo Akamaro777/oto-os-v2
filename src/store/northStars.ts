@@ -6,6 +6,7 @@ import { todayISO, daysBetween } from '@/lib/dates'
 import { getProfileNumber, getProfileString } from './profile'
 import { useMockExams } from './study'
 import { useLiveMrr } from './deals'
+import { useLatestRevenue } from './revenue'
 import { useCountries } from './countries'
 
 export type GoalStatus = 'complete' | 'ahead' | 'ontrack' | 'behind' | 'danger'
@@ -105,8 +106,11 @@ function manualCard(opts: {
 /** The North Star goal cards with pace maths, reacting to the store. */
 export function useNorthStars(): NorthStar[] {
   const mocks = useMockExams()
-  // Live milestone sources: MRR sums closed deals, countries counts the log.
-  const mrr = useLiveMrr()
+  // Live milestone sources: logged monthly revenue (fallback: closed deals),
+  // countries counts the visit log.
+  const logged = useLatestRevenue()
+  const fromDeals = useLiveMrr()
+  const mrr = logged > 0 ? logged : fromDeals
   const countries = useCountries().length
   const bodies = Number(useValue('profile.bodiesCount', store) ?? 0)
 
