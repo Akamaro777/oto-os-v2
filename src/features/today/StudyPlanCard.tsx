@@ -5,7 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { shortDate } from '@/lib/dates'
-import { GMAT_PLAN, KIND_META, planFor, planIndex, type PlanDay } from '@/lib/gmatPlan'
+import { GMAT_PLAN, KIND_META, SUBJECT_META, planFor, planIndex, type PlanDay } from '@/lib/gmatPlan'
 import { useRules, toggleRule } from '@/store/rules'
 
 /** Today's GMAT session: what to study in the 3h morning block. */
@@ -40,8 +40,19 @@ export function StudyPlanCard({ date }: { date: string }) {
           >
             {meta.label}
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{day.title}</span>
+          {day.subject && (
+            <span
+              className="rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide"
+              style={{
+                backgroundColor: `${SUBJECT_META[day.subject].color}22`,
+                color: SUBJECT_META[day.subject].color,
+              }}
+            >
+              {SUBJECT_META[day.subject].label}
+            </span>
+          )}
         </div>
+        <p className="mb-2 text-sm font-medium">{day.title}</p>
 
         <ul className="space-y-1.5">
           {day.items.map((item) => (
@@ -127,6 +138,12 @@ function PlanRow({ day, isToday, isPast }: { day: PlanDay; isToday: boolean; isP
           {meta.label}
         </span>
         <span className="min-w-0 flex-1 truncate text-[13px]">{day.title}</span>
+        {day.subject && (
+          <span
+            className="size-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: SUBJECT_META[day.subject].color }}
+          />
+        )}
         {rules.deepwork && <Check className="size-3.5 shrink-0 text-primary" />}
       </div>
       {isToday && (
