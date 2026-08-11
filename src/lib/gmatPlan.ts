@@ -1,7 +1,14 @@
 /**
- * The 50-day GMAT plan (Aug 11 → Sep 30 2026), one entry per day.
- * Static by design: the plan is fixed, so it needs no storage and always
- * survives a data reset. Progress (done ticks) lives in the store.
+ * The GMAT plan (Aug 11 → Sep 30 2026), one entry per day.
+ *
+ * Built around pure sessions: a day is either ALL exercises (~80 timed
+ * questions, no reviewing, no videos) or ALL review (redo misses, watch
+ * technique videos, update the mistake sheet). Oto sustains ~80 questions in a
+ * 3h block when nothing interrupts it, and mixing modes inside one session
+ * meant the review half never happened.
+ *
+ * Static by design: the plan is fixed, so it needs no storage and survives a
+ * data reset. Progress (done ticks) lives in the store.
  */
 
 export type PlanKind = 'learn' | 'drill' | 'sections' | 'mock' | 'review' | 'taper' | 'rest' | 'exam'
@@ -17,7 +24,7 @@ export interface PlanDay {
 
 export const KIND_META: Record<PlanKind, { label: string; color: string }> = {
   learn: { label: 'Learn', color: '#7dd3fc' },
-  drill: { label: 'Drill', color: '#c9f158' },
+  drill: { label: 'Exercise', color: '#c9f158' },
   sections: { label: 'Sections', color: '#4ade80' },
   mock: { label: 'Mock', color: '#fbbf24' },
   review: { label: 'Review', color: '#f0abfc' },
@@ -33,71 +40,78 @@ const d = (date: string, kind: PlanKind, title: string, ...items: string[]): Pla
   items,
 })
 
+/** An exercise day: 4 blocks of 20 timed questions, answers checked but not analysed. */
+const ex = (date: string, focus: string, source: string): PlanDay =>
+  d(date, 'drill', `80 timed — ${focus}`, `4 × 20 questions, 40 min per block`, source, 'Mark right/wrong only — no analysis today')
+
+/** A review day: no new questions. */
+const rev = (date: string, title: string, ...items: string[]): PlanDay =>
+  d(date, 'review', title, ...items)
+
 export const GMAT_PLAN: PlanDay[] = [
-  // ── Week 1 · Quant book, all 207 questions ──
-  d('2026-08-11', 'learn', 'Number properties', '1h video: factors, primes, divisibility', '35 timed quant'),
-  d('2026-08-12', 'drill', '50 timed quant', 'Number properties + fractions/percents'),
-  d('2026-08-13', 'learn', 'Algebra basics', '1h video: algebra foundations', '35 timed quant'),
-  d('2026-08-14', 'drill', '50 timed quant', 'Algebra'),
-  d('2026-08-15', 'sections', '3 quant sections', '63 questions, 45 min each, exam conditions'),
-  d('2026-08-16', 'review', 'Review week 1', 'Redo every miss from the week, timed', 'No new questions'),
+  // ── Block 1 · Quant foundations ──
+  d('2026-08-11', 'drill', '82 timed quant', 'Done — OG Quant Review, number properties onward'),
+  ex('2026-08-12', 'quant', 'OG Quant Review, continue where you stopped'),
+  rev('2026-08-13', 'Review: Aug 11–12', 'Redo every miss cold, no notes', 'Videos on your 3 worst topics', 'Start your mistake sheet'),
+  ex('2026-08-14', 'quant', 'Finish the OG Quant book, then TTP'),
+  ex('2026-08-15', 'quant', 'TTP — arithmetic & number properties'),
+  rev('2026-08-16', 'Review: Aug 14–15', 'Redo every miss cold', 'Videos on your 3 worst topics', 'Add rules to the mistake sheet'),
 
-  // ── Week 2 · TTP starts, algebra deep ──
-  d('2026-08-17', 'learn', 'TTP: equations & inequalities', '1h lessons', '40 timed quant'),
-  d('2026-08-18', 'drill', '50 timed quant', 'Equations & inequalities'),
-  d('2026-08-19', 'drill', '50 timed quant', 'Mixed algebra'),
-  d('2026-08-20', 'learn', 'TTP: exponents & roots', '1h lessons', '40 timed quant'),
-  d('2026-08-21', 'drill', '50 timed quant', 'Exponents & roots'),
-  d('2026-08-22', 'sections', '3 quant sections', '63 questions, 45 min each'),
-  d('2026-08-23', 'review', 'Review week 2', 'Redo every miss, timed'),
+  ex('2026-08-17', 'quant', 'TTP — algebra: equations & inequalities'),
+  ex('2026-08-18', 'quant', 'TTP — algebra continued'),
+  rev('2026-08-19', 'Review: Aug 17–18', 'Redo every miss cold', 'Videos on your 3 worst topics', 'Update the mistake sheet'),
+  ex('2026-08-20', 'quant', 'TTP — exponents, roots, inequalities'),
+  ex('2026-08-21', 'quant', 'TTP — weakest topics from the app'),
+  ex('2026-08-22', 'quant', 'TTP — mixed, all topics so far'),
+  rev('2026-08-23', 'Review: Aug 20–22', 'Redo every miss cold', 'Videos on your 3 worst topics', 'Update the mistake sheet'),
 
-  // ── Week 3 · DI book (170 q) + Mock 1 ──
-  d('2026-08-24', 'learn', 'Data Sufficiency method', '1h video: the AD/BCE framework', '35 timed DS'),
-  d('2026-08-25', 'drill', '50 timed DI', 'Data Sufficiency heavy'),
-  d('2026-08-26', 'drill', '50 timed DI', 'Graphs, tables, multi-source'),
-  d('2026-08-27', 'drill', '50 timed DI', 'Two-part + mixed — DI book finished'),
-  d('2026-08-28', 'drill', '50 timed quant', 'Your weak spots from the app'),
-  d('2026-08-29', 'mock', 'Mock 1', 'Full official practice exam, morning start'),
-  d('2026-08-30', 'review', 'Review Mock 1', 'Every wrong answer + every unsure right one', "Plus the week's misses"),
+  // ── Block 2 · Data Insights + quant ──
+  ex('2026-08-24', 'Data Insights', 'OG DI Review — Data Sufficiency first'),
+  ex('2026-08-25', 'Data Insights', 'OG DI Review — finish the book'),
+  rev('2026-08-26', 'Review: Aug 24–25', 'Redo every DS miss cold', 'Videos on the DS decision framework', 'Update the mistake sheet'),
+  ex('2026-08-27', 'quant', 'TTP — rates, ratios, percents'),
+  ex('2026-08-28', 'quant', 'TTP — word problems'),
+  d('2026-08-29', 'mock', 'Mock 1', 'Full official practice exam, morning start', 'Exam conditions, no pausing'),
+  rev('2026-08-30', 'Review Mock 1', 'Every wrong answer + every unsure right one', 'Videos on the patterns it exposed', 'Update the mistake sheet'),
 
-  // ── Week 4 · Rates, word problems, stats ──
-  d('2026-08-31', 'learn', 'TTP: rates, ratios, work & speed', '1h lessons', '40 timed quant'),
-  d('2026-09-01', 'drill', '50 timed quant', 'Rates & ratios'),
-  d('2026-09-02', 'drill', '50 timed quant', 'Word problems'),
-  d('2026-09-03', 'learn', 'TTP: statistics, sets, counting, probability', '1h lessons', '40 timed quant'),
-  d('2026-09-04', 'drill', '50 timed quant', 'Stats & counting'),
-  d('2026-09-05', 'sections', '3 quant sections', '63 questions, 45 min each'),
-  d('2026-09-06', 'review', 'Review week 4', 'Redo every miss, timed'),
+  // ── Block 3 · Depth ──
+  ex('2026-08-31', 'quant', 'TTP — statistics, sets, counting, probability'),
+  ex('2026-09-01', 'quant', 'TTP — weakest topics from the app'),
+  rev('2026-09-02', 'Review: Aug 31 – Sep 1', 'Redo every miss cold', 'Videos on your 3 worst topics', 'Update the mistake sheet'),
+  ex('2026-09-03', 'quant', 'TTP — mixed difficulty'),
+  ex('2026-09-04', 'Data Insights', 'TTP / GMAT Club — DS heavy'),
+  ex('2026-09-05', 'quant', 'TTP — hardest tier you can handle'),
+  rev('2026-09-06', 'Review: Sep 3–5', 'Redo every miss cold', 'Videos on your 3 worst topics', 'Update the mistake sheet'),
 
-  // ── Week 5 · Mixed, verbal returns + Mock 2 ──
-  d('2026-09-07', 'drill', '50 timed quant', 'Top weak spot from the app'),
-  d('2026-09-08', 'sections', 'Quant ×2 + DI ×1', '2 timed quant sections + 1 timed DI section'),
-  d('2026-09-09', 'sections', 'Verbal ×2', '46 questions, RC-focused'),
-  d('2026-09-10', 'drill', '50 timed quant', 'Weak spot'),
-  d('2026-09-11', 'sections', 'DI ×2 + quant ×1', '2 timed DI sections + 1 timed quant section'),
-  d('2026-09-12', 'mock', 'Mock 2', 'Full official practice exam'),
-  d('2026-09-13', 'review', 'Review Mock 2', "Plus the week's misses"),
+  // ── Block 4 · Integration ──
+  ex('2026-09-07', 'quant', 'TTP — weak spots from the app'),
+  ex('2026-09-08', 'quant', 'TTP — mixed, timed to 2:00/question'),
+  rev('2026-09-09', 'Review: Sep 7–8', 'Redo every miss cold', 'Videos on your 3 worst topics', 'Update the mistake sheet'),
+  ex('2026-09-10', '60 quant + 20 verbal', 'Verbal is maintenance only — RC focus'),
+  ex('2026-09-11', 'Data Insights', 'DS + graphs, tables, multi-source'),
+  d('2026-09-12', 'mock', 'Mock 2', 'Full official practice exam', 'Exam conditions'),
+  rev('2026-09-13', 'Review Mock 2', 'Every wrong answer + every unsure right one', 'Compare against Mock 1 — what moved?', 'Update the mistake sheet'),
 
-  // ── Week 6 · Weak spots + Mock 3 ──
-  d('2026-09-14', 'drill', '55 timed quant', 'Top weak spot from the app'),
-  d('2026-09-15', 'drill', '55 timed quant', 'Second weak spot'),
-  d('2026-09-16', 'sections', 'Verbal ×2 + DI ×1', '2 timed verbal sections + 1 timed DI section'),
-  d('2026-09-17', 'drill', '55 timed DI', 'Data Sufficiency heavy'),
-  d('2026-09-18', 'sections', 'Quant ×2 + verbal ×1', '2 timed quant sections + 1 timed verbal section'),
-  d('2026-09-19', 'mock', 'Mock 3', 'Full official practice exam'),
-  d('2026-09-20', 'review', 'Review Mock 3', 'Plus misses'),
+  // ── Block 5 · Weak-spot targeting ──
+  ex('2026-09-14', 'quant', 'Top weak spot from the app'),
+  ex('2026-09-15', 'quant', 'Second weak spot from the app'),
+  rev('2026-09-16', 'Review: Sep 14–15', 'Redo every miss cold', 'Videos on your 3 worst topics', 'Update the mistake sheet'),
+  ex('2026-09-17', '50 DI + 30 verbal', 'DS heavy, verbal maintenance'),
+  ex('2026-09-18', 'quant', 'Mixed, hardest tier'),
+  d('2026-09-19', 'mock', 'Mock 3', 'Full official practice exam', 'Exam conditions'),
+  rev('2026-09-20', 'Review Mock 3', 'Every wrong answer + every unsure right one', 'Pacing audit: where did the clock go?', 'Update the mistake sheet'),
 
-  // ── Week 7 · Sharpening + Mock 4 ──
-  d('2026-09-21', 'drill', '55 timed quant', 'Weak spots'),
-  d('2026-09-22', 'sections', 'DI ×2 + quant ×1', '2 timed DI sections + 1 timed quant section'),
-  d('2026-09-23', 'sections', 'Verbal ×2 + quant ×1', '2 timed verbal sections + 1 timed quant section'),
-  d('2026-09-24', 'sections', 'Quant ×2 + DI ×1', '2 timed quant sections + 1 timed DI section'),
-  d('2026-09-25', 'sections', 'One of each', 'Quant + verbal + DI, one timed section each (64 q)'),
+  // ── Block 6 · Sharpening ──
+  ex('2026-09-21', 'quant', 'Remaining weak spots'),
+  ex('2026-09-22', 'mixed', '50 quant + 15 DI + 15 verbal'),
+  rev('2026-09-23', 'Review: Sep 21–22', 'Redo every miss cold', 'Videos on anything still shaky', 'Update the mistake sheet'),
+  ex('2026-09-24', 'quant', 'Hardest tier, strict 2:00 pacing'),
+  ex('2026-09-25', 'mixed', '40 quant + 20 DI + 20 verbal'),
   d('2026-09-26', 'mock', 'Mock 4', 'Final predictor — treat it like the real thing'),
-  d('2026-09-27', 'review', 'Review Mock 4', 'Last full error pass'),
+  rev('2026-09-27', 'Review Mock 4', 'Last full error pass', 'Read the mistake sheet end to end'),
 
   // ── Final days ──
-  d('2026-09-28', 'taper', 'Taper', '20 timed easy questions', 'Read your whole error log', '90 min max, then stop'),
+  d('2026-09-28', 'taper', 'Taper', '20 easy timed questions to stay warm', 'Read your mistake sheet once', '90 min max, then stop'),
   d('2026-09-29', 'rest', 'Rest', 'No studying', 'Check test centre logistics + ID', 'Sleep early'),
   d('2026-09-30', 'exam', 'EXAM DAY', 'Target 705', 'Past 3 min: guess and move on', 'Use all 3 bookmark edits per section'),
 ]
