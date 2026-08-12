@@ -5,7 +5,7 @@ compatibility_date = "2026-01-01"
 # Create with:  npx wrangler kv namespace create OTO
 # then paste the printed id below.
 kv_namespaces = [
-  { binding = "OTO", id = "PASTE_KV_NAMESPACE_ID_HERE" }
+  { binding = "OTO", id = "46dff4ae95ef4fbb9ad5bb7fab716f27" }
 ]
 
 # 05:00 UTC = 07:00 CEST (morning briefing) · 19:30 UTC = 21:30 CEST (evening check-in)
