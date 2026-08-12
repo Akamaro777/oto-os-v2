@@ -72,11 +72,15 @@ export function GoalDetailSheet({ star, onClose }: GoalDetailSheetProps) {
 
   return (
     <Sheet open={star != null} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="bottom" className="glass-heavy mx-auto max-w-md gap-5 rounded-t-3xl border-0 px-5 pb-10">
-        <SheetHeader className="px-0">
+      <SheetContent
+        side="bottom"
+        className="glass-heavy mx-auto flex max-h-[90dvh] max-w-md flex-col gap-4 rounded-t-3xl border-0 px-5 pb-[max(env(safe-area-inset-bottom),2.5rem)]"
+      >
+        <SheetHeader className="shrink-0 px-0">
           <SheetTitle className="font-serif text-2xl">{star.label}</SheetTitle>
         </SheetHeader>
 
+        <div className="-mx-1 flex-1 space-y-4 overflow-y-auto overscroll-contain px-1">
         <div className="flex items-center gap-5">
           <ProgressRing pct={star.pct} markerPct={star.expectedPct} color={color} size={110} stroke={8}>
             <span className="font-serif text-2xl">
@@ -124,6 +128,7 @@ export function GoalDetailSheet({ star, onClose }: GoalDetailSheetProps) {
             <LineTrend data={series} color={color} target={star.targetValue || undefined} height={170} />
           </div>
         )}
+        </div>
       </SheetContent>
     </Sheet>
   )

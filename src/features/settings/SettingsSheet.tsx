@@ -123,12 +123,16 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="mx-auto max-w-md gap-5 rounded-t-2xl px-5 pb-8">
-        <SheetHeader className="px-0">
+      <SheetContent
+        side="bottom"
+        className="mx-auto flex max-h-[92dvh] max-w-md flex-col gap-4 rounded-t-2xl px-5 pb-[max(env(safe-area-inset-bottom),2rem)]"
+      >
+        <SheetHeader className="shrink-0 px-0">
           <SheetTitle className="font-serif text-2xl">Settings</SheetTitle>
         </SheetHeader>
 
-        <div className="space-y-4">
+        {/* Scrolls independently: the sheet is taller than the screen. */}
+        <div className="-mx-1 flex-1 space-y-4 overflow-y-auto overscroll-contain px-1">
           <div className="space-y-1.5">
             <Label htmlFor="set-key">Anthropic API key</Label>
             <Input
@@ -335,7 +339,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
           </div>
         </div>
 
-        <SheetFooter className="px-0">
+        <SheetFooter className="shrink-0 px-0">
           <Button onClick={handleSave}>Save</Button>
         </SheetFooter>
       </SheetContent>

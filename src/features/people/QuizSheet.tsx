@@ -43,7 +43,7 @@ export function QuizSheet({ open, onOpenChange, contacts }: QuizSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={reset}>
-      <SheetContent side="bottom" className="glass-heavy mx-auto max-w-md gap-5 rounded-t-3xl border-0 px-5 pb-10">
+      <SheetContent side="bottom" className="glass-heavy mx-auto flex max-h-[90dvh] max-w-md flex-col gap-4 overflow-y-auto overscroll-contain rounded-t-3xl border-0 px-5 pb-[max(env(safe-area-inset-bottom),2.5rem)]">
         <SheetHeader className="px-0">
           <SheetTitle className="flex items-center gap-2 font-serif text-2xl">
             <Brain className="size-5 text-pillar-social" /> Recall
