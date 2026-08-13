@@ -107,12 +107,12 @@ function FullPlanSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="glass-heavy mx-auto flex h-[85dvh] max-w-md flex-col gap-4 rounded-t-3xl border-0 px-5 pb-8"
+        className="glass-heavy mx-auto flex max-h-[85dvh] max-w-md flex-col gap-4 rounded-t-3xl border-0 px-5 pb-[max(env(safe-area-inset-bottom),2rem)]"
       >
-        <SheetHeader className="px-0">
+        <SheetHeader className="shrink-0 px-0">
           <SheetTitle className="font-serif text-2xl">GMAT plan · to Sep 30</SheetTitle>
         </SheetHeader>
-        <div className="-mx-1 flex-1 overflow-y-auto px-1">
+        <div className="-mx-1 flex-1 overflow-y-auto overscroll-contain px-1">
           <ul className="space-y-1.5">
             {GMAT_PLAN.map((p) => (
               <PlanRow key={p.date} day={p} isToday={p.date === today} isPast={p.date < today} />
