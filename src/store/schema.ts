@@ -268,6 +268,14 @@ export interface BusinessPlan {
   ts: number
 }
 
+/** Nightly voice debrief — raw transcript + AI summary (rowId = YYYY-MM-DD). */
+export interface Debrief {
+  date: string
+  text: string
+  summary?: string
+  ts: number
+}
+
 /** Daily non-negotiable rules checklist (rowId = YYYY-MM-DD). */
 export interface RulesLog {
   date: string
@@ -307,6 +315,7 @@ export const T = {
   gmatErrors: 'gmatErrors',
   interactions: 'interactions',
   weeklyReviews: 'weeklyReviews',
+  debriefs: 'debriefs',
 } as const
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -502,6 +511,11 @@ export const tablesSchema: TablesSchema = {
   weeklyReviews: {
     week: { type: 'string' },
     text: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  debriefs: {
+    text: { type: 'string' },
+    summary: { type: 'string' },
     ts: { type: 'number' },
   },
 }

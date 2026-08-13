@@ -20,6 +20,7 @@ import { StudyPlanCard } from './StudyPlanCard'
 import { WeeklyReview } from './WeeklyReview'
 import { StreaksCard } from './StreaksCard'
 import { ShutdownCard } from './ShutdownSheet'
+import { DebriefCard } from './DebriefSheet'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
   complete: '#c9f158',
@@ -138,6 +139,11 @@ export function TodayScreen() {
         {/* Evening shutdown (appears after 20:00 until the day is rated) */}
         <StaggerItem>
           <ShutdownCard date={today} nowMin={nowMin} />
+        </StaggerItem>
+
+        {/* Nightly voice debrief */}
+        <StaggerItem>
+          <DebriefCard date={today} />
         </StaggerItem>
 
         {/* Streaks */}

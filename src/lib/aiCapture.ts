@@ -21,7 +21,7 @@ import type { Priority } from '@/store/schema'
 const PILLAR_HINT = `"category" must be one of: personal, body, social, money, study.`
 
 /** Prepended to every capture prompt — the input is speech-to-text, not typed prose. */
-const TRANSCRIPT_HINT = `The user input is a raw speech-to-text transcript: expect mis-heard words, missing punctuation, run-on numbers and filler words. Infer the intended meaning from context (e.g. "way 74" = weight 74, "for our steady" = 4h study) rather than taking odd words literally.`
+export const TRANSCRIPT_HINT = `The user input is a raw speech-to-text transcript: expect mis-heard words, missing punctuation, run-on numbers and filler words. Infer the intended meaning from context (e.g. "way 74" = weight 74, "for our steady" = 4h study) rather than taking odd words literally.`
 
 /* ── JSON Schema helpers (structured outputs make malformed JSON impossible) ── */
 
@@ -62,7 +62,7 @@ async function extract(
 
 /** Structured outputs guarantee valid JSON; the brace-slice is a last-resort
  * fallback for model overrides pointing at models without schema support. */
-function parseExtractedJson(raw: string, errMsg: string): Record<string, unknown> {
+export function parseExtractedJson(raw: string, errMsg: string): Record<string, unknown> {
   let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
   const start = s.indexOf('{')
   const end = s.lastIndexOf('}')
