@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import {
   DndContext,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDraggable,
@@ -46,13 +47,12 @@ export function DayTimeline({ date, onNewBlock, onEditBlock }: DayTimelineProps)
   const { startH, endH } = useDayWindow()
   const blocks = useBlocksByDate(date)
   const events = useEventsByDate(date)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
-
-  const windowStart = startH * 60
-  const windowEnd = endH * 60
-  const height = (endH - startH) * HOUR_PX
-
-  const allDay = events.filter((e) => !e.time)
+  // Mouse drags on a small movement; touch needs a deliberate long-press so a
+  // scroll swipe that lands on a block scrolls instead of rescheduling it.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  )
 
   const laidOut = useMemo(() => {
     const items: GridItem[] = []
@@ -69,7 +69,18 @@ export function DayTimeline({ date, onNewBlock, onEditBlock }: DayTimelineProps)
     return layoutColumns(items)
   }, [blocks, events])
 
-  const hours = Array.from({ length: endH - startH }, (_, i) => startH + i)
+  // The grid covers the configured day window, grown (to whole hours, within
+  // the day) to fit anything scheduled outside it — a 06:00 flight must not
+  // collapse onto the 07:00 line over a real block.
+  const itemStartMin = laidOut.length ? Math.min(...laidOut.map((l) => l.item.startMin)) : startH * 60
+  const itemEndMin = laidOut.length ? Math.max(...laidOut.map((l) => l.item.endMin)) : endH * 60
+  const windowStart = Math.max(0, Math.min(startH * 60, Math.floor(itemStartMin / 60) * 60))
+  const windowEnd = Math.max(endH * 60, Math.min(24 * 60, Math.ceil(itemEndMin / 60) * 60))
+  const height = ((windowEnd - windowStart) / 60) * HOUR_PX
+
+  const allDay = events.filter((e) => !e.time)
+
+  const hours = Array.from({ length: (windowEnd - windowStart) / 60 }, (_, i) => windowStart / 60 + i)
 
   function handleDragEnd(event: DragEndEvent) {
     const b = blocks.find((x) => x.id === event.active.id)
@@ -113,17 +124,14 @@ export function DayTimeline({ date, onNewBlock, onEditBlock }: DayTimelineProps)
             onClick={() => onNewBlock(`${String(h).padStart(2, '0')}:00`)}
             aria-label={`Add block at ${String(h).padStart(2, '0')}:00`}
             className="absolute inset-x-0 border-t border-border/50 transition-colors hover:bg-secondary/30"
-            style={{ top: (h - startH) * HOUR_PX, height: HOUR_PX }}
+            style={{ top: (h - windowStart / 60) * HOUR_PX, height: HOUR_PX }}
           >
             <span className="absolute -top-2 left-0 w-11 text-right font-mono text-[10px] text-muted-foreground">
               {String(h).padStart(2, '0')}:00
             </span>
           </button>
         ))}
-        <div
-          className="absolute inset-x-0 border-t border-border/50"
-          style={{ top: (endH - startH) * HOUR_PX }}
-        />
+        <div className="absolute inset-x-0 border-t border-border/50" style={{ top: height }} />
 
         <DndContext sensors={sensors} modifiers={[restrictToVerticalAxis]} onDragEnd={handleDragEnd}>
           <div className="pointer-events-none absolute inset-y-0 right-0" style={{ left: GUTTER }}>
@@ -217,11 +225,13 @@ function DraggableBlock({
       onClick={() => onEdit(block)}
       onKeyDown={(ev) => ev.key === 'Enter' && onEdit(block)}
       className={cn(
-        'pointer-events-auto absolute flex touch-none gap-1.5 overflow-hidden rounded-md border-l-2 px-2 py-1 text-left',
+        // touch-manipulation (not touch-none): scroll swipes must keep working
+        // over blocks; the TouchSensor's long-press handles drag activation.
+        'pointer-events-auto absolute flex select-none touch-manipulation gap-1.5 overflow-hidden rounded-md border-l-2 px-2 py-1 text-left',
         block.done ? 'bg-secondary/50' : 'bg-secondary',
         isDragging && 'shadow-lg ring-1 ring-primary/40',
       )}
-      style={style}
+      style={{ ...style, WebkitTouchCallout: 'none' } as React.CSSProperties}
       {...listeners}
       {...attributes}
     >

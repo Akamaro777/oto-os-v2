@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,24 @@ interface GoalDetailSheetProps {
 
 /** Full "story" view for a North Star: big ring, the numbers, required rate, history chart. */
 export function GoalDetailSheet({ star, onClose }: GoalDetailSheetProps) {
+  // Keep the last goal rendered through the close animation — returning null
+  // while the sheet is open would unmount the portal and skip the slide-out.
+  const lastRef = useRef<NorthStar | null>(null)
+  if (star) lastRef.current = star
+  const shown = star ?? lastRef.current
+  if (!shown) return null
+  return <GoalDetailContent star={shown} open={star != null} onClose={onClose} />
+}
+
+function GoalDetailContent({
+  star,
+  open,
+  onClose,
+}: {
+  star: NorthStar
+  open: boolean
+  onClose: () => void
+}) {
   const mocks = useMockExams()
 
   const series = useMemo(() => {
@@ -66,12 +84,11 @@ export function GoalDetailSheet({ star, onClose }: GoalDetailSheetProps) {
     }
   }, [star])
 
-  if (!star) return null
   const color = pillarColor(star.pillar)
   const counterKey = COUNTER_KEY[star.id]
 
   return (
-    <Sheet open={star != null} onOpenChange={(o) => !o && onClose()}>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
         side="bottom"
         className="glass-heavy mx-auto flex max-h-[90dvh] max-w-md flex-col gap-4 rounded-t-3xl border-0 px-5 pb-[max(env(safe-area-inset-bottom),2.5rem)]"

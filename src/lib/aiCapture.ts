@@ -31,6 +31,8 @@ async function extract(system: string, text: string): Promise<Record<string, unk
     maxTokens: 1500,
     system: `${TRANSCRIPT_HINT}\n${system}`,
     messages: [{ role: 'user', content: text }],
+    // Truncated JSON would otherwise surface as a misleading parse error.
+    failOnMaxTokens: true,
   })
   let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
   const start = s.indexOf('{')
@@ -185,6 +187,7 @@ Build the strongest realistic day IN OTO'S OWN STYLE: study the history above an
     maxTokens: 1500,
     system: `You are an elite personal scheduler. ${PLAN_SHAPE}`,
     messages: [{ role: 'user', content: context }],
+    failOnMaxTokens: true,
   })
   let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
   const start = s.indexOf('{')
@@ -298,6 +301,7 @@ List one errors[] entry per wrong question you can identify. Use "di" for Data I
     model: MODELS.sonnet,
     maxTokens: 3000,
     system,
+    failOnMaxTokens: true,
     messages: [
       {
         role: 'user',

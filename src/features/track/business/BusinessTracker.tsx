@@ -16,7 +16,8 @@ import {
 import { LineTrend } from '@/components/charts'
 import { CountUp } from '@/components/CountUp'
 import { PILLAR_META } from '@/lib/pillars'
-import { todayISO } from '@/lib/dates'
+
+import { useSelectedDate } from '@/lib/useToday'
 import { getProfileNumber } from '@/store/profile'
 import { YearHeatmap } from '@/components/YearHeatmap'
 import { useIdeas, addIdea, deleteIdea } from '@/store/business'
@@ -28,7 +29,7 @@ const MONEY = PILLAR_META.money.color
 
 /** Business = cold-call execution: today's count, the 7-day trend, consistency, ideas. */
 export function BusinessTracker() {
-  const [date, setDate] = useState(todayISO())
+  const [date, setDate] = useSelectedDate()
   const [ideaOpen, setIdeaOpen] = useState(false)
 
   const callsTarget = getProfileNumber('callsDailyTarget') || 70

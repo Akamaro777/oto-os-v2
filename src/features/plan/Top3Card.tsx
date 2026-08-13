@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTop3, setTop3 } from '@/store/planner'
 
 interface Top3CardProps {
@@ -26,6 +26,19 @@ function Top3Row({ date, slot, value }: { date: string; slot: number; value: str
 
   // Re-sync when the underlying value changes (e.g. day switch).
   useEffect(() => setText(value), [value])
+
+  // Commit on unmount too: switching tabs with the keyboard still up fires no
+  // blur, and the typed priority would otherwise be lost.
+  const textRef = useRef(text)
+  textRef.current = text
+  const valueRef = useRef(value)
+  valueRef.current = value
+  useEffect(
+    () => () => {
+      if (textRef.current !== valueRef.current) setTop3(date, slot, textRef.current)
+    },
+    [date, slot],
+  )
 
   function commit() {
     if (text !== value) setTop3(date, slot, text)

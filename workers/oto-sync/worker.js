@@ -27,9 +27,16 @@ const json = (data, status, origin) =>
     headers: { 'content-type': 'application/json', ...cors(origin) },
   })
 
+/** The deployed app origin, plus localhost so `npm run dev` can sync too. */
+function pickOrigin(request, env) {
+  const reqOrigin = request.headers.get('Origin') ?? ''
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(reqOrigin)) return reqOrigin
+  return env.ALLOWED_ORIGIN || '*'
+}
+
 export default {
   async fetch(request, env) {
-    const origin = env.ALLOWED_ORIGIN || '*'
+    const origin = pickOrigin(request, env)
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors(origin) })
 
     if (request.headers.get('X-Sync-Secret') !== env.SYNC_SECRET) {
@@ -49,7 +56,39 @@ export default {
     if (path === '/state' && request.method === 'PUT') {
       const body = await request.text()
       if (body.length > 20_000_000) return json({ error: 'too large' }, 413, origin)
+
+      // Validate before storing — a malformed body must never become "state".
+      let incoming
+      try {
+        incoming = JSON.parse(body)
+      } catch {
+        return json({ error: 'invalid json' }, 400, origin)
+      }
+      if (typeof incoming?._lastModified !== 'number' || typeof incoming?.tables !== 'object') {
+        return json({ error: 'missing tables/_lastModified' }, 400, origin)
+      }
+
+      // Reject stale snapshots (a zombie device pushing over newer data) and
+      // empty snapshots trying to replace real data. `?force=1` overrides for
+      // an intentional reset. The timestamp lives in its own small key so PUTs
+      // don't have to parse the full stored state.
+      const force = url.searchParams.get('force') === '1'
+      if (!force) {
+        const storedLM = Number((await env.OTO.get('state-lm')) ?? 0)
+        if (incoming._lastModified < storedLM) {
+          return json({ error: 'stale', storedLastModified: storedLM }, 409, origin)
+        }
+        const rows = Object.values(incoming.tables).reduce(
+          (n, t) => n + Object.keys(t ?? {}).length,
+          0,
+        )
+        if (rows === 0 && storedLM > 0) {
+          return json({ error: 'refusing empty state over existing data' }, 409, origin)
+        }
+      }
+
       await env.OTO.put('state', body)
+      await env.OTO.put('state-lm', String(incoming._lastModified))
       return json({ ok: true }, 200, origin)
     }
 
@@ -58,7 +97,7 @@ export default {
     }
 
     if (path === '/push/subscribe' && request.method === 'POST') {
-      const { subscription } = await request.json()
+      const { subscription } = await request.json().catch(() => ({}))
       if (!subscription?.endpoint) return json({ error: 'bad subscription' }, 400, origin)
       const key = 'sub:' + btoa(subscription.endpoint).slice(0, 200)
       await env.OTO.put(key, JSON.stringify(subscription))
@@ -66,7 +105,7 @@ export default {
     }
 
     if (path === '/push/unsubscribe' && request.method === 'POST') {
-      const { endpoint } = await request.json()
+      const { endpoint } = await request.json().catch(() => ({}))
       if (endpoint) await env.OTO.delete('sub:' + btoa(endpoint).slice(0, 200))
       return json({ ok: true }, 200, origin)
     }

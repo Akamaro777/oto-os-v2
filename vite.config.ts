@@ -9,9 +9,10 @@ import path from 'node:path'
 const REPO = 'oto-os-v2'
 
 // https://vite.dev/config/
-export default defineConfig(({ command }) => ({
-  // '/' during local dev; '/<repo>/' for the production build on GitHub Pages.
-  base: command === 'build' ? `/${REPO}/` : '/',
+export default defineConfig(({ command, isPreview }) => ({
+  // '/' during local dev; '/<repo>/' for the production build on GitHub Pages
+  // and for `vite preview` (which serves that build and must match its base).
+  base: command === 'build' || isPreview ? `/${REPO}/` : '/',
   plugins: [
     react(),
     tailwindcss(),

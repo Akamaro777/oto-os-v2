@@ -5,9 +5,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { celebrate, celebrateFromEvent } from '@/lib/celebrate'
 import { type Task } from '@/store/schema'
-import { toggleTask, deleteTask } from '@/store/tasks'
+import { toggleTask, deleteTask, restoreTask } from '@/store/tasks'
 import { pillarColor, resolvePillar, PILLAR_META } from '@/lib/pillars'
-import { relativeDueLabel } from '@/lib/dates'
+import { relativeDueLabel, todayISO } from '@/lib/dates'
 import { toast } from 'sonner'
 
 const PRIORITY_COLOR: Record<Task['priority'], string> = {
@@ -25,7 +25,8 @@ interface TaskItemProps {
 
 /** Task row with swipe gestures: right → complete, left → delete. */
 export function TaskItem({ task, onEdit }: TaskItemProps) {
-  const overdue = !task.done && task.due != null && task.due < new Date().toISOString().slice(0, 10)
+  // Local date, not UTC — right after midnight the two disagree.
+  const overdue = !task.done && task.due != null && task.due < todayISO()
   const x = useMotionValue(0)
   const rightOpacity = useTransform(x, [0, SWIPE_THRESHOLD], [0, 1])
   const leftOpacity = useTransform(x, [-SWIPE_THRESHOLD, 0], [1, 0])
@@ -42,8 +43,12 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
       }
       toggleTask(task.id)
     } else if (info.offset.x < -SWIPE_THRESHOLD) {
+      // A 90px swipe is easy to hit by accident — deletion must be undoable.
+      const snapshot = { ...task }
       deleteTask(task.id)
-      toast('Task deleted')
+      toast('Task deleted', {
+        action: { label: 'Undo', onClick: () => restoreTask(snapshot) },
+      })
     }
   }
 

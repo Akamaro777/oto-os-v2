@@ -14,6 +14,8 @@ import { todayISO, daysBetween } from '@/lib/dates'
 import { fileToJpegDataURL } from '@/lib/images'
 import { extractGmatPhoto, applyGmatExtract, type GmatPhotoExtract } from '@/lib/aiCapture'
 import { AnthropicError } from '@/lib/anthropic'
+import { useValues } from 'tinybase/ui-react'
+import { store } from '@/store/store'
 import { getProfileNumber, getProfileString } from '@/store/profile'
 import { useGmatErrors, useMockExams, aggregateWeakSpots } from '@/store/study'
 import { toast } from 'sonner'
@@ -25,6 +27,8 @@ const SECTION_LABEL: Record<string, string> = { quant: 'Quant', verbal: 'Verbal'
 /** Days-left countdown vs the target score, from logged mocks. */
 export function GmatCountdownCard() {
   const mocks = useMockExams()
+  // Subscribe to values so target/date edits (and AI-extracted data) apply live.
+  useValues(store)
   const target = getProfileNumber('gmatTargetScore') || 705
   const targetDate = getProfileString('gmatTargetDate')
   const daysLeft = Math.max(0, daysBetween(todayISO(), targetDate))
@@ -54,6 +58,9 @@ export function GmatCountdownCard() {
 
 /** Official score-report profile: section scores + GMAC's weakest skill areas. */
 export function ExamProfileCard() {
+  // Reactive: the card appears the moment the photo pipeline writes the data
+  // (the imperative getters alone would keep it hidden until a remount).
+  useValues(store)
   const date = getProfileString('examDate')
   const total = getProfileNumber('examTotal')
   if (!date || !total) return null

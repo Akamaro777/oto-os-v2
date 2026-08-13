@@ -36,6 +36,9 @@ interface MessagesRequest {
   system?: string
   messages: AnthropicMessage[]
   signal?: AbortSignal
+  /** Throw when the reply was cut off by max_tokens (JSON extraction callers —
+   * a truncated JSON always fails downstream with a misleading parse error). */
+  failOnMaxTokens?: boolean
 }
 
 export class AnthropicError extends Error {}
@@ -43,36 +46,57 @@ export class AnthropicError extends Error {}
 /** Low-level call to the Messages API; returns the concatenated text output. */
 export async function callMessages(
   apiKey: string,
-  { model, maxTokens = 1024, system, messages, signal }: MessagesRequest,
+  { model, maxTokens = 1024, system, messages, signal, failOnMaxTokens }: MessagesRequest,
 ): Promise<string> {
   if (!apiKey) throw new AnthropicError('No API key set. Add it in Settings.')
 
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': ANTHROPIC_VERSION,
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      ...(system ? { system } : {}),
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    }),
-    signal,
-  })
+  let res: Response
+  try {
+    res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        ...(system ? { system } : {}),
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      }),
+      // A stalled mobile request must never pin the UI on "thinking…" forever.
+      signal: signal ?? AbortSignal.timeout(60_000),
+    })
+  } catch (e) {
+    if (e instanceof DOMException && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+      throw new AnthropicError('Request timed out — check your connection and retry.')
+    }
+    throw new AnthropicError(e instanceof Error ? e.message : 'Network error')
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => '')
     throw new AnthropicError(`Anthropic ${res.status}: ${detail.slice(0, 200)}`)
   }
 
-  const data = (await res.json()) as { content?: { type: string; text?: string }[] }
-  return (data.content ?? [])
+  const data = (await res.json()) as {
+    content?: { type: string; text?: string }[]
+    stop_reason?: string
+  }
+  const text = (data.content ?? [])
     .filter((b) => b.type === 'text')
     .map((b) => b.text ?? '')
     .join('')
     .trim()
+
+  if (data.stop_reason === 'max_tokens' && failOnMaxTokens) {
+    throw new AnthropicError('The reply hit the length limit — try a shorter input.')
+  }
+  if (!text) {
+    throw new AnthropicError('The model returned no text — try rephrasing.')
+  }
+  // A visibly truncated chat reply is better than a silently truncated one.
+  return data.stop_reason === 'max_tokens' ? `${text} …` : text
 }

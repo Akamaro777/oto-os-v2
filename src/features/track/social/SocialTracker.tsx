@@ -1,11 +1,11 @@
-import { useState } from 'react'
+
 import { motion } from 'motion/react'
 import { TrackerCard } from '@/components/TrackerCard'
 import { DayStepper } from '@/components/DayStepper'
 import { LineTrend } from '@/components/charts'
 import { cn } from '@/lib/utils'
 import { celebrateFromEvent } from '@/lib/celebrate'
-import { todayISO } from '@/lib/dates'
+import { useSelectedDate } from '@/lib/useToday'
 import { PILLAR_META } from '@/lib/pillars'
 import { YearHeatmap } from '@/components/YearHeatmap'
 import { useSocialLog, setSocialRating, useSocialSeries, useRatingMap } from '@/store/social'
@@ -19,7 +19,7 @@ const MOOD: Record<number, string> = {
 
 /** One question: how was your day? Rate it, see the trend, move on. */
 export function SocialTracker() {
-  const [date, setDate] = useState(todayISO())
+  const [date, setDate] = useSelectedDate()
   const log = useSocialLog(date)
   const series = useSocialSeries(7)
   const ratingMap = useRatingMap()

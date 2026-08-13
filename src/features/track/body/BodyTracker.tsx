@@ -1,11 +1,11 @@
-import { useState } from 'react'
+
 import { Dumbbell } from 'lucide-react'
 import { TrackerCard } from '@/components/TrackerCard'
 import { DayStepper } from '@/components/DayStepper'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LineTrend, BarTotals } from '@/components/charts'
-import { todayISO } from '@/lib/dates'
+import { useSelectedDate } from '@/lib/useToday'
 import { PILLAR_META } from '@/lib/pillars'
 import { YearHeatmap } from '@/components/YearHeatmap'
 import {
@@ -20,7 +20,7 @@ import { TrainingGrid } from './TrainingGrid'
 const BODY = PILLAR_META.body.color
 
 export function BodyTracker() {
-  const [date, setDate] = useState(todayISO())
+  const [date, setDate] = useSelectedDate()
 
   const log = useBodyLog(date)
   const weightSeries = useBodySeries('weight')

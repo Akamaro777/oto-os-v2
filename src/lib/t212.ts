@@ -14,15 +14,25 @@ export async function fetchT212Summary(url: string, secret: string): Promise<T21
   try {
     resp = await fetch(url.replace(/\/$/, '') + '/summary', {
       headers: { 'X-Proxy-Secret': secret },
+      // A hung mobile connection must not leave the Sync button spinning forever.
+      signal: AbortSignal.timeout(15_000),
     })
   } catch (e) {
-    throw new T212Error(e instanceof Error ? e.message : 'Network error')
+    throw new T212Error(
+      e instanceof DOMException && e.name === 'TimeoutError'
+        ? 'Proxy timed out — try again'
+        : e instanceof Error
+          ? e.message
+          : 'Network error',
+    )
   }
   if (!resp.ok) {
     const body = (await resp.json().catch(() => ({}))) as { error?: string }
     throw new T212Error(body.error || `HTTP ${resp.status}`)
   }
-  const data = (await resp.json()) as Record<string, unknown>
+  const data = (await resp.json().catch(() => {
+    throw new T212Error('Proxy returned a non-JSON response.')
+  })) as Record<string, unknown>
   const total = (data.total ?? data.totalValue) as number | undefined
   if (typeof total !== 'number') throw new T212Error('No total value in proxy response.')
   return {

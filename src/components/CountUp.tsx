@@ -12,8 +12,11 @@ interface CountUpProps {
 
 /** Number that springs from its previous value to the new one — data feels alive. */
 export function CountUp({ value, format, className, style, duration = 0.9 }: CountUpProps) {
-  const [display, setDisplay] = useState(value)
-  const prev = useRef(0)
+  // Start at 0 so the first paint doesn't flash the final value before the
+  // count-up begins; every animation starts from what's actually displayed,
+  // so a mid-flight value change continues smoothly instead of snapping.
+  const [display, setDisplay] = useState(0)
+  const displayRef = useRef(0)
   const reduced = useRef(
     typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -21,16 +24,18 @@ export function CountUp({ value, format, className, style, duration = 0.9 }: Cou
 
   useEffect(() => {
     if (reduced.current) {
+      displayRef.current = value
       setDisplay(value)
-      prev.current = value
       return
     }
-    const controls = animate(prev.current, value, {
+    const controls = animate(displayRef.current, value, {
       duration,
       ease: [0.16, 1, 0.3, 1],
-      onUpdate: (v) => setDisplay(v),
+      onUpdate: (v) => {
+        displayRef.current = v
+        setDisplay(v)
+      },
     })
-    prev.current = value
     return () => controls.stop()
   }, [value, duration])
 

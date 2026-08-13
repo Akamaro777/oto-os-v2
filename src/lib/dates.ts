@@ -56,7 +56,20 @@ export function dayHeaderLabel(date: string, today = todayISO()): string {
   if (date === today) return 'Today'
   if (date === addDaysISO(today, 1)) return 'Tomorrow'
   if (date === addDaysISO(today, -1)) return 'Yesterday'
-  return format(parseISO(date), 'EEE, MMM d')
+  return safeFormat(date, 'EEE, MMM d')
+}
+
+/**
+ * Format an ISO date, returning the raw string when it isn't a valid date.
+ * Formatters run inside chart ticks and list rows — a malformed stored date
+ * (bad import, hand-edited seed) must degrade to text, never throw mid-render.
+ */
+function safeFormat(date: string, fmt: string): string {
+  try {
+    return format(parseISO(date), fmt)
+  } catch {
+    return date
+  }
 }
 
 /** Minutes since midnight for 'HH:MM'. */
@@ -78,7 +91,7 @@ export function isoWeekKey(date: string = todayISO()): string {
   return `${getISOWeekYear(d)}-W${String(getISOWeek(d)).padStart(2, '0')}`
 }
 
-/** Short label for a chart axis tick, e.g. 'Jul 6'. */
+/** Short label for a chart axis tick, e.g. 'Jul 6'. Total — bad input echoes back. */
 export function shortDate(date: string): string {
-  return format(parseISO(date), 'MMM d')
+  return safeFormat(date, 'MMM d')
 }

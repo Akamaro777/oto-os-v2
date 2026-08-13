@@ -121,14 +121,20 @@ export function useSpeech(lang = 'en-US'): SpeechState {
       }
       rec.onerror = (e) => {
         // no-speech / aborted are routine pauses; onend handles the restart.
+        // Every OTHER error is terminal — leaving keepAlive on would respawn
+        // a failing recognizer every 100ms forever (mic held by another app,
+        // unsupported language, audio-capture failures…).
+        if (e.error === 'no-speech' || e.error === 'aborted') return
+        keepAliveRef.current = false
+        setListening(false)
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          keepAliveRef.current = false
           setError('Microphone permission denied')
-          setListening(false)
         } else if (e.error === 'network') {
-          keepAliveRef.current = false
           setError('Speech service unreachable — check your connection')
-          setListening(false)
+        } else if (e.error === 'audio-capture') {
+          setError('No microphone available — is another app using it?')
+        } else {
+          setError(`Speech recognition failed (${e.error ?? 'unknown'})`)
         }
       }
       rec.onend = () => {

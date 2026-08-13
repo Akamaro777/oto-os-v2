@@ -29,6 +29,9 @@ interface TasksViewProps {
 export function TasksView({ createOpen, onCreateOpenChange }: TasksViewProps) {
   const tasks = useAllTasks()
   const [filter, setFilter] = useState<TaskFilter>('open')
+  // Separate open flag: clearing the task on close would flip the dialog to
+  // "New task" mode for the duration of its exit animation.
+  const [editOpen, setEditOpen] = useState(false)
   const [editing, setEditing] = useState<Task | undefined>(undefined)
 
   const counts = useMemo(() => countOpenByFilter(tasks), [tasks])
@@ -78,7 +81,13 @@ export function TasksView({ createOpen, onCreateOpenChange }: TasksViewProps) {
         <ul className="mt-2 divide-y divide-border">
           {visible.map((task) => (
             <li key={task.id}>
-              <TaskItem task={task} onEdit={setEditing} />
+              <TaskItem
+                task={task}
+                onEdit={(t) => {
+                  setEditing(t)
+                  setEditOpen(true)
+                }}
+              />
             </li>
           ))}
         </ul>
@@ -87,11 +96,7 @@ export function TasksView({ createOpen, onCreateOpenChange }: TasksViewProps) {
       {/* Create */}
       <TaskDialog open={createOpen} onOpenChange={onCreateOpenChange} />
       {/* Edit */}
-      <TaskDialog
-        open={editing != null}
-        onOpenChange={(open) => !open && setEditing(undefined)}
-        task={editing}
-      />
+      <TaskDialog open={editOpen} onOpenChange={setEditOpen} task={editing} />
     </div>
   )
 }

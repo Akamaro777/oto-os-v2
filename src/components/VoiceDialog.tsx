@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Mic, Square, Sparkles, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -28,10 +28,18 @@ export function VoiceDialog({ open, onOpenChange, title, hint, placeholder, proc
   const speech = useSpeech()
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
+  const mirroredLen = useRef(0)
 
-  // Mirror recognised speech into the editable field.
+  // Append newly-finalised speech to the editable field. Append the DELTA
+  // only — replacing wholesale would wipe any manual corrections the user
+  // typed mid-dictation.
   useEffect(() => {
-    if (speech.transcript) setText(speech.transcript)
+    const t = speech.transcript
+    if (t.length > mirroredLen.current) {
+      const delta = t.slice(mirroredLen.current).trim()
+      if (delta) setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${delta}` : delta))
+    }
+    mirroredLen.current = t.length
   }, [speech.transcript])
 
   useEffect(() => {
@@ -41,6 +49,7 @@ export function VoiceDialog({ open, onOpenChange, title, hint, placeholder, proc
     }
     setText('')
     setBusy(false)
+    mirroredLen.current = 0
     speech.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -50,7 +59,9 @@ export function VoiceDialog({ open, onOpenChange, title, hint, placeholder, proc
   }, [speech.error])
 
   async function handleCreate() {
-    const t = text.trim()
+    // Include the still-interim tail — finals lag by seconds on mobile, and
+    // the words are visibly in the box when the user taps Create.
+    const t = (text + (speech.interim ? ` ${speech.interim}` : '')).trim()
     if (!t) {
       toast.error('Say or type something first')
       return

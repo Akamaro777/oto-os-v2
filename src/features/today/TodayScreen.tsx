@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
-import { Circle, Clock, ArrowRight, ListChecks, Users, Cake } from 'lucide-react'
+import { Circle, Clock, ArrowRight, Users, Cake } from 'lucide-react'
 import { Screen, Stagger, StaggerItem } from '@/components/Screen'
 import { TrackerCard } from '@/components/TrackerCard'
 import { ProgressRing } from '@/components/ProgressRing'
@@ -145,7 +145,6 @@ export function TodayScreen() {
             <div className="space-y-3">
               {now && <TimelineRow label="Now" block={now} highlight nowMin={nowMin} />}
               {next && <TimelineRow label="Next" block={next} />}
-              {!now && !next && <p className="text-sm text-muted-foreground">Nothing scheduled.</p>}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No blocks planned for today.</p>
@@ -220,12 +219,6 @@ export function TodayScreen() {
           </StaggerItem>
         )}
 
-        {stars.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
-            <ListChecks className="size-8" />
-            <p className="text-sm">Log some data and Today fills in.</p>
-          </div>
-        )}
       </Stagger>
 
       <GoalDetailSheet star={detail} onClose={() => setDetailId(null)} />

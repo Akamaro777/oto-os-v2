@@ -68,12 +68,14 @@ export function importInstagramAccounts(accounts: IgAccount[], limit: number): I
   let skipped = 0
   store.transaction(() => {
     for (const acc of accounts) {
-      if (created >= limit) {
-        skipped++
-        continue
-      }
+      // Known first — an already-linked handle past the limit is "linked",
+      // not "older skipped", or the toast miscounts.
       if (known.has(acc.handle.toLowerCase())) {
         linked++
+        continue
+      }
+      if (created >= limit) {
+        skipped++
         continue
       }
       known.add(acc.handle.toLowerCase())

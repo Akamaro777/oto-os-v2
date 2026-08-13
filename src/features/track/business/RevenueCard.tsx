@@ -15,7 +15,15 @@ import { toast } from 'sonner'
 
 const MONEY = PILLAR_META.money.color
 const eur = (n: number) => `€${Math.round(n).toLocaleString('en-US')}`
-const monthLabel = (m: string) => format(parseISO(`${m}-01`), 'MMM yyyy')
+// Total: desktop browsers without <input type="month"> fall back to free text,
+// so a malformed stored key must render as-is, never throw mid-list.
+const monthLabel = (m: string) => {
+  try {
+    return format(parseISO(`${m}-01`), 'MMM yyyy')
+  } catch {
+    return m
+  }
+}
 
 /** Monthly business revenue — the real number behind the €5k/mo objective. */
 export function RevenueCard() {
@@ -26,6 +34,10 @@ export function RevenueCard() {
   const [amount, setAmount] = useState('')
 
   function save() {
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      toast.error('Month must look like 2026-08')
+      return
+    }
     const v = parseDecimal(amount)
     if (v == null || Number.isNaN(v) || v < 0) {
       toast.error('Enter an amount')

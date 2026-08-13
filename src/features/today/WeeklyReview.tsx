@@ -79,9 +79,13 @@ function computeStats(days: string[], callsTarget: number): WeekStats {
 /** Sunday-only review of the week: the numbers plus an optional AI verdict. */
 export function WeeklyReview({ date }: { date: string }) {
   const isSunday = getDay(parseISO(date)) === 0
-  // Subscribe so the card refreshes as today's data lands.
-  useTable(T.rules, store)
-  useTable(T.cv, store)
+  // Subscribe AND depend on the tables below, so the stats recompute as
+  // today's data lands (a bare subscription re-renders but a memo without
+  // these deps would keep returning the mount-time numbers).
+  const rulesTable = useTable(T.rules, store)
+  const cvTable = useTable(T.cv, store)
+  const bodyTable = useTable(T.body, store)
+  const mocksTable = useTable(T.mockExams, store)
   const errors = useGmatErrors()
   const [aiText, setAiText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -91,7 +95,12 @@ export function WeeklyReview({ date }: { date: string }) {
     () => Array.from({ length: 7 }, (_, i) => addDaysISO(date, -(6 - i))),
     [date],
   )
-  const stats = useMemo(() => computeStats(days, callsTarget), [days, callsTarget])
+  const stats = useMemo(
+    () => computeStats(days, callsTarget),
+    // The table deps are deliberate: computeStats reads them imperatively.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [days, callsTarget, rulesTable, cvTable, bodyTable, mocksTable],
+  )
 
   if (!isSunday) return null
 

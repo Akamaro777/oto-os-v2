@@ -48,7 +48,7 @@ export function buildSystemPrompt(): string {
   let portStr = 'no entries'
   if (latestP) {
     portStr = `€${num(latestP.value).toFixed(0)}`
-    if (firstP && firstP !== latestP) {
+    if (firstP && firstP !== latestP && num(firstP.value) > 0) {
       const change = num(latestP.value) - num(firstP.value)
       const pct = ((change / num(firstP.value)) * 100).toFixed(1)
       portStr += ` (${change >= 0 ? '+' : ''}${pct}% since ${firstP.date})`

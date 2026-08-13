@@ -3,10 +3,14 @@ import { cn } from '@/lib/utils'
 import { celebrateFromEvent } from '@/lib/celebrate'
 import { GYM_SLOTS, useGymWeek, toggleGymSession, type GymSlot } from '@/store/body'
 import { isoWeekKey, todayISO, shortDate } from '@/lib/dates'
+import { useToday } from '@/lib/useToday'
 
 /** Current-week training grid. Tap a tile to mark done today; tap again to clear. */
 export function TrainingGrid() {
-  const week = isoWeekKey()
+  // Reactive today so the grid rolls into the new week on Monday without a
+  // remount (the render-time week key would otherwise go stale overnight).
+  const today = useToday()
+  const week = isoWeekKey(today)
   const data = useGymWeek(week)
 
   return (
@@ -20,7 +24,8 @@ export function TrainingGrid() {
             type="button"
             onClick={(e) => {
               if (!done) celebrateFromEvent(e)
-              toggleGymSession(week, key, todayISO())
+              // Compute at tap time — the rendered week key can be a frame stale.
+              toggleGymSession(isoWeekKey(), key, todayISO())
             }}
             className={cn(
               'flex flex-col items-center gap-1 rounded-lg border px-1 py-3 transition-colors',

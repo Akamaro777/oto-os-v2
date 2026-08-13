@@ -10,13 +10,16 @@ const asArr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
 const str = (v: unknown): string => (v == null ? '' : String(v))
 const bool = (v: unknown): boolean => v === true || v === 'true'
 
-/** Monday (ISO) of a 'YYYY-Www' week key, for legacy boolean gym sessions. */
-function isoWeekMonday(weekKey: string): string {
+/** Monday (ISO) of a 'YYYY-Www' week key, for legacy boolean gym sessions.
+ * Null for malformed keys — "NaN-NaN-NaN" must never reach the store. */
+function isoWeekMonday(weekKey: string): string | null {
   const [y, w] = weekKey.split('-W')
+  if (!y || !w || Number.isNaN(Number(y)) || Number.isNaN(Number(w))) return null
   let d = new Date(Number(y), 0, 4)
   d = setISOWeekYear(d, Number(y))
   d = setISOWeek(d, Number(w))
-  return toISO(startOfISOWeek(d))
+  const iso = toISO(startOfISOWeek(d))
+  return iso.includes('NaN') ? null : iso
 }
 
 export interface ImportSummary {
@@ -63,8 +66,17 @@ export function importV1(raw: unknown): ImportSummary {
       if (field in src && src[field] != null && src[field] !== '') {
         const def = valuesSchema[key] as { type: string }
         const v = src[field]
-        store.setValue(key, def.type === 'number' ? Number(v) : String(v))
-        valueCount++
+        if (def.type === 'number') {
+          const n = Number(v)
+          // Skip non-numeric junk ("74kg") — a NaN here renders everywhere.
+          if (!Number.isNaN(n)) {
+            store.setValue(key, n)
+            valueCount++
+          }
+        } else {
+          store.setValue(key, String(v))
+          valueCount++
+        }
       }
     }
 
@@ -118,9 +130,11 @@ export function importV1(raw: unknown): ImportSummary {
       for (const [rawKey, value] of Object.entries(asObj(sessions))) {
         const key = rawKey === 'stretching' ? 'stretch' : rawKey
         if (!(key in (tablesSchema[T.gymSessions] as Obj))) continue
-        if (value === true) row[key] = isoWeekMonday(week)
-        else if (typeof value === 'string' && value) row[key] = value
-        // false / falsy → dropped
+        if (value === true) {
+          const monday = isoWeekMonday(week)
+          if (monday) row[key] = monday
+        } else if (typeof value === 'string' && value) row[key] = value
+        // false / falsy / unparseable week keys → dropped
       }
       if (Object.keys(row).length) {
         store.setRow(T.gymSessions, week, row)

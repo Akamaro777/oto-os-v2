@@ -14,7 +14,8 @@ import { TrackerCard } from '@/components/TrackerCard'
 import { VoiceDialog } from '@/components/VoiceDialog'
 import { cn } from '@/lib/utils'
 import { pillarColor } from '@/lib/pillars'
-import { todayISO, toISO, shortDate } from '@/lib/dates'
+import { toISO, shortDate } from '@/lib/dates'
+import { useToday, useSelectedDate } from '@/lib/useToday'
 import { captureEvents } from '@/lib/aiCapture'
 import { type CalendarEvent } from '@/store/schema'
 import { useAllEvents } from '@/store/events'
@@ -22,9 +23,9 @@ import { EventDialog } from './EventDialog'
 
 /** Month grid + day agenda + upcoming list, with manual and voice event capture. */
 export function CalendarView() {
-  const today = todayISO()
+  const today = useToday()
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
-  const [selected, setSelected] = useState(today)
+  const [selected, setSelected] = useSelectedDate()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [editing, setEditing] = useState<CalendarEvent | undefined>(undefined)
@@ -49,7 +50,8 @@ export function CalendarView() {
     [month],
   )
 
-  const dayEvents = (byDate.get(selected) ?? []).sort((a, b) =>
+  // Sort a copy — sorting in place would mutate the memoized map's arrays.
+  const dayEvents = [...(byDate.get(selected) ?? [])].sort((a, b) =>
     (a.time ?? '').localeCompare(b.time ?? ''),
   )
   const upcoming = useMemo(
@@ -155,9 +157,11 @@ export function CalendarView() {
         </TrackerCard>
       )}
 
+      {/* `editing` is kept through close so the exit animation doesn't flash
+          the dialog into "New event" mode; the + button resets it on open. */}
       <EventDialog
         open={dialogOpen}
-        onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditing(undefined) }}
+        onOpenChange={setDialogOpen}
         defaultDate={selected}
         event={editing}
       />

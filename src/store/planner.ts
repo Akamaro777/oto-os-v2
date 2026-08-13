@@ -44,7 +44,9 @@ export function computeNowNext(blocks: Block[], nowMin: number): NowNext {
   let next: Block | undefined
   for (const b of blocks) {
     const start = parseHM(b.start)
-    const end = b.end ? parseHM(b.end) : start + 60
+    const rawEnd = b.end ? parseHM(b.end) : start + 60
+    // An end before the start means the block crosses midnight (23:30–00:30).
+    const end = rawEnd <= start ? rawEnd + 24 * 60 : rawEnd
     if (start <= nowMin && nowMin < end) now = b
     else if (start > nowMin && (!next || parseHM(next.start) > start)) next = b
   }
@@ -79,7 +81,11 @@ export function setTop3(date: string, slot: number, text: string): void {
     store.delRow(T.top3, id)
     return
   }
-  store.setRow(T.top3, id, { date, slot, text: trimmed })
+  // Preserve a task link (v1 import) — setRow would silently drop the cell.
+  const taskId = store.getCell(T.top3, id, 'taskId')
+  const row: Record<string, string | number> = { date, slot, text: trimmed }
+  if (typeof taskId === 'string' && taskId) row.taskId = taskId
+  store.setRow(T.top3, id, row)
 }
 
 /* ── Block mutations ── */

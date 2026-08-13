@@ -8,11 +8,14 @@ import { todayISO } from '@/lib/dates'
 type Cells = Record<string, string | number | boolean | undefined>
 
 function rowToTask(id: string, row: Cells): Task {
+  const priority = row.priority as Priority
   return {
     id,
     title: String(row.title ?? ''),
     notes: row.notes != null ? String(row.notes) : undefined,
-    priority: (row.priority as Priority) ?? 'med',
+    // Guard the domain, not just the type — an imported "medium" would make
+    // the sort comparator return NaN and the list order flicker.
+    priority: priority in PRIORITY_RANK ? priority : 'med',
     due: row.due ? String(row.due) : undefined,
     category: row.category ? String(row.category) : undefined,
     projectId: row.projectId ? String(row.projectId) : undefined,
@@ -123,4 +126,20 @@ export function toggleTask(id: string): void {
 
 export function deleteTask(id: string): void {
   store.delRow(T.tasks, id)
+}
+
+/** Re-create a deleted task under its original id (undo for swipe-delete). */
+export function restoreTask(task: Task): void {
+  const row: Cells = {
+    title: task.title,
+    priority: task.priority,
+    done: task.done,
+    createdTs: task.createdTs,
+  }
+  if (task.notes) row.notes = task.notes
+  if (task.due) row.due = task.due
+  if (task.category) row.category = task.category
+  if (task.projectId) row.projectId = task.projectId
+  if (task.doneTs != null) row.doneTs = task.doneTs
+  store.setRow(T.tasks, task.id, row as Record<string, string | number | boolean>)
 }

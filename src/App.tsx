@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { toast } from 'sonner'
 import type { TabId } from '@/lib/nav'
@@ -39,12 +39,15 @@ export default function App() {
   const ActiveScreen = SCREENS[tab]
 
   useEffect(() => {
-    // D4: silent portfolio refresh when the app opens
-    maybeAutoSyncT212().then((total) => {
-      if (total != null) toast.success(`Portfolio synced: €${Math.round(total).toLocaleString('en-US')}`)
+    // D1: cross-device sync (no-op until configured in Settings). The T212
+    // refresh must wait for the initial pull — writing portfolio rows first
+    // would race the incoming remote state.
+    startSync().finally(() => {
+      // D4: silent portfolio refresh when the app opens
+      maybeAutoSyncT212().then((total) => {
+        if (total != null) toast.success(`Portfolio synced: €${Math.round(total).toLocaleString('en-US')}`)
+      })
     })
-    // D1: cross-device sync (no-op until configured in Settings)
-    startSync()
   }, [])
 
   return (
@@ -59,7 +62,9 @@ export default function App() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
           >
-            <ActiveScreen />
+            <ErrorBoundary key={tab}>
+              <ActiveScreen />
+            </ErrorBoundary>
           </motion.div>
         </AnimatePresence>
       </Suspense>
@@ -67,6 +72,41 @@ export default function App() {
       <Toaster position="top-center" />
     </div>
   )
+}
+
+/**
+ * One bad persisted row must never take the whole app down — a crash in a
+ * screen is contained here, and the other tabs keep working (keyed by tab so
+ * switching away and back retries the render).
+ */
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-dvh flex-col items-center justify-center gap-3 px-8 text-center">
+          <p className="font-serif text-2xl">This screen hit an error</p>
+          <p className="text-sm text-muted-foreground">
+            Your data is safe — the other tabs still work. Error:{' '}
+            <span className="font-mono text-xs">{this.state.error.message}</span>
+          </p>
+          <button
+            type="button"
+            className="rounded-lg bg-secondary px-4 py-2 text-sm"
+            onClick={() => this.setState({ error: null })}
+          >
+            Try again
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 function ScreenFallback() {

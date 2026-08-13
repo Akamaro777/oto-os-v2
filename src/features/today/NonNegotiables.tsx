@@ -75,17 +75,24 @@ export function NonNegotiables({ date }: { date: string }) {
       }
     >
       <ul className="space-y-1">
-        {items.map((item) => (
+        {items.map((item) => {
+          // Auto-satisfied calls row: the checkmark comes from the logged
+          // count, so a tap would only flip an invisible bit — make it inert.
+          const autoChecked = item.key === 'calls' && callsLogged >= callsTarget
+          const toggle = () => {
+            if (!autoChecked) toggleRule(date, item.key)
+          }
+          return (
           <li key={item.key}>
             {/* div, not button: the Checkbox inside already renders a <button> */}
             <div
               role="button"
               tabIndex={0}
-              onClick={() => toggleRule(date, item.key)}
+              onClick={toggle}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  toggleRule(date, item.key)
+                  toggle()
                 }
               }}
               className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-1 py-2 text-left"
@@ -107,7 +114,8 @@ export function NonNegotiables({ date }: { date: string }) {
               )}
             </div>
           </li>
-        ))}
+          )
+        })}
       </ul>
     </TrackerCard>
   )

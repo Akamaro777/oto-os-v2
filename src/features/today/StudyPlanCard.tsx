@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Check, ChevronRight } from 'lucide-react'
 import { TrackerCard } from '@/components/TrackerCard'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { shortDate } from '@/lib/dates'
 import { GMAT_PLAN, KIND_META, SUBJECT_META, planFor, planIndex, type PlanDay } from '@/lib/gmatPlan'
@@ -72,7 +71,16 @@ export function StudyPlanCard({ date }: { date: string }) {
             onClick={() => toggleRule(date, 'deepwork')}
             className="mt-3 flex w-full items-center gap-2 rounded-lg bg-secondary/40 px-3 py-2 text-left"
           >
-            <Checkbox checked={rules.deepwork} className="pointer-events-none" />
+            {/* Visual-only check (a real Checkbox is a <button>, illegal inside one) */}
+            <span
+              aria-hidden
+              className={cn(
+                'flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs transition-colors',
+                rules.deepwork ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
+              )}
+            >
+              {rules.deepwork && <Check className="size-3" />}
+            </span>
             <span className={cn('text-sm', rules.deepwork && 'text-muted-foreground line-through')}>
               Session done
             </span>

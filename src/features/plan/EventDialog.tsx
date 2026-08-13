@@ -84,6 +84,7 @@ export function EventDialog({ open, onOpenChange, defaultDate, event }: EventDia
               autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSave()}
               placeholder="e.g. GMAT exam"
             />
           </div>

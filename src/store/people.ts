@@ -97,6 +97,9 @@ function setOrClearString(id: string, cell: string, value?: string): void {
 
 /** Set last contact to today. */
 export function logTouch(id: string): void {
+  // hasRow guard: setCell on a deleted contact (e.g. removed on the other
+  // device mid-session) would resurrect it as a nameless ghost row.
+  if (!store.hasRow(T.contacts, id)) return
   store.setCell(T.contacts, id, 'lastContact', todayISO())
 }
 
@@ -133,7 +136,9 @@ export function useInteractions(contactId: string): Interaction[] {
 export function addInteraction(contactId: string, note: string, date = todayISO()): string {
   const id = newId()
   store.setRow(T.interactions, id, { contactId, date, note: note.trim(), ts: Date.now() })
-  store.setCell(T.contacts, contactId, 'lastContact', date)
+  if (store.hasRow(T.contacts, contactId)) {
+    store.setCell(T.contacts, contactId, 'lastContact', date)
+  }
   return id
 }
 
@@ -154,6 +159,7 @@ export function quizDueContacts(contacts: Contact[], today = todayISO()): Contac
 
 /** Record a quiz answer: right → longer interval, wrong → back to daily. */
 export function recordQuizResult(id: string, correct: boolean, today = todayISO()): void {
+  if (!store.hasRow(T.contacts, id)) return
   const level = Number(store.getCell(T.contacts, id, 'quizLevel') ?? 0)
   const next = correct ? Math.min(level + 1, QUIZ_INTERVALS.length) : 0
   store.setCell(T.contacts, id, 'quizLevel', next)

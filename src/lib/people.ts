@@ -10,15 +10,19 @@ export function reconnectDue(c: Contact, today = todayISO()): boolean {
 /** Days until the contact's next birthday (accepts 'MM-DD' or 'YYYY-MM-DD'); null if none/invalid. */
 export function daysUntilBirthday(c: Contact, today = todayISO()): number | null {
   if (!c.birthday) return null
-  const mmdd = c.birthday.length > 5 ? c.birthday.slice(5) : c.birthday
-  if (!/^\d{2}-\d{2}$/.test(mmdd)) return null
-  const [tY] = [Number(today.slice(0, 4))]
-  const thisYear = Date.parse(`${tY}-${mmdd}T00:00:00`)
+  const orig = c.birthday.length > 5 ? c.birthday.slice(5) : c.birthday
+  if (!/^\d{2}-\d{2}$/.test(orig)) return null
+  const tY = Number(today.slice(0, 4))
+  // Feb 29 in a non-leap year parses as NaN and the birthday would never
+  // surface — celebrate on Feb 28 those years.
+  const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+  const inYear = (y: number) => (orig === '02-29' && !isLeap(y) ? '02-28' : orig)
+  const thisYear = Date.parse(`${tY}-${inYear(tY)}T00:00:00`)
   const nowMs = Date.parse(`${today}T00:00:00`)
   if (Number.isNaN(thisYear)) return null
   let diff = Math.round((thisYear - nowMs) / 86_400_000)
   if (diff < 0) {
-    const nextYear = Date.parse(`${tY + 1}-${mmdd}T00:00:00`)
+    const nextYear = Date.parse(`${tY + 1}-${inYear(tY + 1)}T00:00:00`)
     diff = Math.round((nextYear - nowMs) / 86_400_000)
   }
   return diff

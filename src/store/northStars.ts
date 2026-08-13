@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
-import { useValue } from 'tinybase/ui-react'
+import { useValue, useValues } from 'tinybase/ui-react'
 import type { Pillar } from './schema'
 import { store } from './store'
-import { todayISO, daysBetween } from '@/lib/dates'
+import { daysBetween } from '@/lib/dates'
+import { useToday } from '@/lib/useToday'
 import { getProfileNumber, getProfileString } from './profile'
 import { useMockExams } from './study'
 import { useLiveMrr } from './deals'
@@ -113,9 +114,13 @@ export function useNorthStars(): NorthStar[] {
   const mrr = logged > 0 ? logged : fromDeals
   const countries = useCountries().length
   const bodies = Number(useValue('profile.bodiesCount', store) ?? 0)
+  // The maths reads many profile.* values imperatively; depending on the whole
+  // values object (cheap — it's one flat record) keeps target edits live, and
+  // useToday keeps "Xd left" honest after midnight without a remount.
+  const today = useToday()
+  const values = useValues(store)
 
   return useMemo(() => {
-    const today = todayISO()
     const cards: NorthStar[] = []
 
     // ── GMAT mock → 705 ──
@@ -213,5 +218,7 @@ export function useNorthStars(): NorthStar[] {
     )
 
     return cards
-  }, [mocks, mrr, countries, bodies])
+    // `values` is deliberate: the body reads profile.* imperatively.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mocks, mrr, countries, bodies, today, values])
 }

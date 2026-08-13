@@ -125,7 +125,9 @@ export function PeopleScreen() {
           )}
 
           {sorted.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No one matches “{query}”.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {query.trim() ? `No one matches “${query}”.` : 'No one in this group yet.'}
+            </p>
           ) : (
             <div className="divide-y divide-border">
               {sorted.map((c) => (

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { TrackerCard } from '@/components/TrackerCard'
 import { DayStepper } from '@/components/DayStepper'
@@ -16,6 +16,8 @@ import { LineTrend } from '@/components/charts'
 import { CountUp } from '@/components/CountUp'
 import { PILLAR_META } from '@/lib/pillars'
 import { todayISO, shortDate } from '@/lib/dates'
+import { useSelectedDate } from '@/lib/useToday'
+import { parseDecimal } from '@/lib/numbers'
 import { getProfileNumber } from '@/store/profile'
 import { YearHeatmap } from '@/components/YearHeatmap'
 import {
@@ -35,7 +37,7 @@ import { toast } from 'sonner'
 const CV = PILLAR_META.cv.color
 
 export function StudyTracker() {
-  const [date, setDate] = useState(todayISO())
+  const [date, setDate] = useSelectedDate()
   const [mockOpen, setMockOpen] = useState(false)
 
   const log = useCvLog(date)
@@ -195,13 +197,29 @@ function PracticeField({
       <Label htmlFor={id} className="text-[11px]">
         {label}
       </Label>
+      {/* text + parseDecimal, not type="number": a comma decimal or stray
+          character in a number input reads back as '' and would silently
+          DELETE the stored value on blur. Same pattern as BodyTracker. */}
       <Input
         id={id}
-        type="number"
+        type="text"
         inputMode="numeric"
         defaultValue={value ?? ''}
         key={`${id}-${value ?? ''}`}
-        onBlur={(e) => onCommit(e.target.value)}
+        onBlur={(e) => {
+          const raw = e.target.value.trim()
+          if (raw === '') {
+            if (value != null) onCommit('')
+            return
+          }
+          const n = parseDecimal(raw)
+          if (Number.isNaN(n) || n < 0) {
+            toast.error(`${label}: enter a number`)
+            e.target.value = value != null ? String(value) : ''
+            return
+          }
+          onCommit(String(n))
+        }}
         placeholder="—"
       />
     </div>
@@ -212,10 +230,18 @@ function MockDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
   const [date, setDate] = useState(todayISO())
   const [score, setScore] = useState('')
 
+  // Fresh defaults each open — the mount-time date can be days old by now.
+  useEffect(() => {
+    if (open) {
+      setDate(todayISO())
+      setScore('')
+    }
+  }, [open])
+
   function handleAdd() {
     const s = Number(score)
-    if (!s) {
-      toast.error('Enter a score')
+    if (!Number.isFinite(s) || s < 205 || s > 805) {
+      toast.error('GMAT total scores run 205–805')
       return
     }
     addMockExam(date || todayISO(), s)

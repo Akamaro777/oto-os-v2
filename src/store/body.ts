@@ -50,7 +50,19 @@ export function useBodyActivityMap(): Record<string, number> {
   return useMemo(() => {
     const out: Record<string, number> = {}
     for (const [date, row] of Object.entries(table)) {
-      if (Object.keys(row).length > 0) out[date] = 1
+      // TinyBase materializes the gym:false / cardio:false schema defaults
+      // into every touched row, so "has any key" would count a day forever
+      // even after its real cells were cleared. Count actual signal only.
+      const logged =
+        row.weight != null ||
+        row.sleep != null ||
+        row.water != null ||
+        row.gym === true ||
+        row.cardio === true ||
+        row.cardioKm != null ||
+        row.cardioMin != null ||
+        (row.gymNotes != null && row.gymNotes !== '')
+      if (logged) out[date] = 1
     }
     return out
   }, [table])

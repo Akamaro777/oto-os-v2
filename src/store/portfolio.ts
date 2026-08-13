@@ -21,11 +21,15 @@ function rowToEntry(id: string, row: Cells): PortfolioEntry {
   }
 }
 
-/** All entries, newest first. */
+/** All entries, newest by DATE first (entry time breaks ties) — backfilling an
+ * old date must not make it the "current" net worth. */
 export function useAllPortfolio(): PortfolioEntry[] {
   const table = useTable(T.portfolio, store) as Record<string, Cells>
   return useMemo(
-    () => Object.entries(table).map(([id, row]) => rowToEntry(id, row)).sort((a, b) => b.ts - a.ts),
+    () =>
+      Object.entries(table)
+        .map(([id, row]) => rowToEntry(id, row))
+        .sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts),
     [table],
   )
 }

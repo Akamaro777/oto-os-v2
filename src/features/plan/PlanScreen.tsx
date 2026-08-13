@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { VoiceDialog } from '@/components/VoiceDialog'
 import { cn } from '@/lib/utils'
 import { todayISO, tomorrowISO, addDaysISO, dayHeaderLabel } from '@/lib/dates'
+import { useSelectedDate } from '@/lib/useToday'
 import { captureDayPlan, autoPlanDay } from '@/lib/aiCapture'
 import { AnthropicError } from '@/lib/anthropic'
 import { toast } from 'sonner'
@@ -18,7 +19,7 @@ import { TasksView } from '@/features/tasks/TasksView'
 type PlanTab = 'timeline' | 'tasks' | 'calendar'
 
 export function PlanScreen() {
-  const [date, setDate] = useState(todayISO())
+  const [date, setDate] = useSelectedDate()
   const [view, setView] = useState<PlanTab>('timeline')
 
   // Block dialog state

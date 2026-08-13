@@ -8,7 +8,7 @@ import { todayISO } from './dates'
 
 const DB_NAME = 'oto-os-backups'
 const STORE = 'snapshots'
-const KEEP = 8
+const KEEP = 12
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 export interface Snapshot {
@@ -54,18 +54,34 @@ export async function maybeSnapshot(): Promise<void> {
     const snapshots = await listSnapshots()
     const newest = snapshots[0]
     if (newest && Date.now() - newest.id < WEEK_MS) return
-    const json = JSON.stringify({ tables: store.getTables(), values: store.getValues() })
-    const db = await openDb()
-    try {
-      await tx(db, 'readwrite', (s) => s.put({ id: Date.now(), date: todayISO(), json }))
-      for (const old of snapshots.slice(KEEP - 1)) {
-        await tx(db, 'readwrite', (s) => s.delete(old.id))
-      }
-    } finally {
-      db.close()
-    }
+    await writeSnapshot(snapshots)
   } catch {
     // Backups must never break boot.
+  }
+}
+
+/**
+ * Take a snapshot right now (before sync overwrites un-pushed local edits, or
+ * before a restore/import). Silent on failure — never blocks the caller's flow.
+ */
+export async function snapshotNow(): Promise<void> {
+  try {
+    await writeSnapshot(await listSnapshots())
+  } catch {
+    // Best-effort only.
+  }
+}
+
+async function writeSnapshot(existing: Snapshot[]): Promise<void> {
+  const json = JSON.stringify({ app: 'oto-os-v2', tables: store.getTables(), values: store.getValues() })
+  const db = await openDb()
+  try {
+    await tx(db, 'readwrite', (s) => s.put({ id: Date.now(), date: todayISO(), json }))
+    for (const old of existing.slice(KEEP - 1)) {
+      await tx(db, 'readwrite', (s) => s.delete(old.id))
+    }
+  } finally {
+    db.close()
   }
 }
 
@@ -77,5 +93,6 @@ export function downloadSnapshot(snap: Snapshot): void {
   a.href = url
   a.download = `oto-os-backup-${snap.date}.json`
   a.click()
-  URL.revokeObjectURL(url)
+  // Deferred: revoking synchronously can abort the download on iOS Safari.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }

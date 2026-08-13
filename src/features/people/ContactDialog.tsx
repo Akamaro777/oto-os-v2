@@ -84,7 +84,9 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
       name: trimmed,
       met,
       lastContact,
-      cadenceDays: Number(cadence) || 0,
+      // Clamp: a typed negative cadence would make the person permanently
+      // "reconnect due" (the min={0} attribute doesn't stop typed input).
+      cadenceDays: Math.max(0, Number(cadence) || 0),
       birthday,
       notes,
       tags,
@@ -272,6 +274,9 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
               size="icon"
               aria-label="Delete person"
               onClick={() => {
+                // Deleting also wipes the whole interaction timeline — a
+                // mis-tap must not do that silently.
+                if (!window.confirm(`Delete ${contact.name} and their conversation log?`)) return
                 deleteContact(contact.id)
                 toast('Deleted')
                 onOpenChange(false)

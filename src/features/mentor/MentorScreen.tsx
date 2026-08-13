@@ -35,8 +35,13 @@ export function MentorScreen() {
     addChatMessage('user', content)
     setBusy(true)
     try {
+      // Window the replayed history (cost grows per message otherwise) and
+      // skip error bubbles — they'd replay as things the mentor "said".
       const history: AnthropicMessage[] = [
-        ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        ...messages
+          .filter((m) => !m.content.startsWith('⚠'))
+          .slice(-30)
+          .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         { role: 'user', content },
       ]
       const reply = await callMessages(key, {
@@ -64,7 +69,16 @@ export function MentorScreen() {
       action={
         <div className="flex gap-1">
           {!empty && (
-            <Button size="icon" variant="ghost" onClick={clearChat} aria-label="Clear chat">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                // One mis-tap next to the Settings icon must not wipe months
+                // of coaching history.
+                if (window.confirm('Clear the whole mentor conversation?')) clearChat()
+              }}
+              aria-label="Clear chat"
+            >
               <Trash2 className="size-5" />
             </Button>
           )}

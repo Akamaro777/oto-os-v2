@@ -106,6 +106,7 @@ export function BlockDialog({ open, onOpenChange, date, block, defaultStart }: B
               autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSave()}
               placeholder="e.g. Deep work"
             />
           </div>

@@ -28,10 +28,24 @@ export function useRevenue(): RevenueMonth[] {
   )
 }
 
-/** Latest logged month's revenue — the live number for the €5k/mo goal. */
+/**
+ * The live number for the €5k/mo goal: this month's logged revenue, falling
+ * back to last month's (early in a month the current row rarely exists yet).
+ * Months older than that are history, not "current MRR" — a stale €800 from
+ * August must not still read as the live number in November.
+ */
 export function useLatestRevenue(): number {
   const rows = useRevenue()
-  return rows.length ? rows[rows.length - 1].amount : 0
+  const current = monthKey()
+  const byMonth = new Map(rows.map((r) => [r.month, r.amount]))
+  return byMonth.get(current) ?? byMonth.get(prevMonthKey(current)) ?? 0
+}
+
+/** 'YYYY-MM' of the month before the given one. */
+function prevMonthKey(month: string): string {
+  const [y, m] = month.split('-').map(Number)
+  const d = new Date(y, (m ?? 1) - 2, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 export function setRevenue(month: string, amount: number, note?: string): void {

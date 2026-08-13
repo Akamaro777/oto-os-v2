@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { RefreshCw, Plus, Trash2, Loader2 } from 'lucide-react'
 import { TrackerCard } from '@/components/TrackerCard'
 import { Button } from '@/components/ui/button'
@@ -135,6 +135,14 @@ function ManualEntryDialog({
 }) {
   const [value, setValue] = useState('')
   const [date, setDate] = useState(todayISO())
+
+  // Fresh defaults each open — the mount-time date can be days old by now.
+  useEffect(() => {
+    if (open) {
+      setDate(todayISO())
+      setValue('')
+    }
+  }, [open])
 
   function handleAdd() {
     const v = parseDecimal(value)

@@ -92,7 +92,9 @@ export function LineTrend({ data, color, unit = '', target, height = 160 }: Line
           stroke={color}
           strokeWidth={2.25}
           fill={`url(#${gradId})`}
-          dot={false}
+          // A single point draws no line segment — without a dot the chart
+          // looks empty right after the first log ("did it even save?").
+          dot={data.length < 3 ? { r: 3.5, fill: color, strokeWidth: 0 } : false}
           activeDot={{ r: 4, fill: color, stroke: 'rgba(0,0,0,0.4)', strokeWidth: 4 }}
           animationDuration={600}
           animationEasing="ease-out"

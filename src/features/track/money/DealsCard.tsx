@@ -56,8 +56,7 @@ export function DealsCard() {
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [editing, setEditing] = useState<Deal | undefined>(undefined)
 
-  const active = deals.filter((d) => d.status !== 'lost')
-  const byStatus = (s: string) => active.filter((d) => d.status === s)
+  const byStatus = (s: string) => deals.filter((d) => d.status === s)
 
   return (
     <TrackerCard
@@ -86,13 +85,15 @@ export function DealsCard() {
         </div>
       </div>
 
-      {active.length === 0 ? (
+      {deals.length === 0 ? (
         <p className="py-2 text-center text-xs text-muted-foreground">
           No deals yet — add your first lead.
         </p>
       ) : (
         <div className="space-y-3">
-          {(['closed', 'talking', 'lead'] as const).map((status) => {
+          {/* 'lost' stays listed (muted, last) — otherwise a deal fat-fingered
+              to lost becomes permanently unreachable, with no way to reopen. */}
+          {(['closed', 'talking', 'lead', 'lost'] as const).map((status) => {
             const group = byStatus(status)
             if (!group.length) return null
             return (

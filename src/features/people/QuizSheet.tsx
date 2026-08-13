@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Brain, Check, X } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -17,8 +17,21 @@ interface QuizSheetProps {
  * Five minutes a day and 10-new-people days stop being a blur.
  */
 export function QuizSheet({ open, onOpenChange, contacts }: QuizSheetProps) {
-  // Deck snapshots when the sheet opens; index walks through it.
-  const deck = useMemo(() => (open ? quizDueContacts(contacts).slice(0, 15) : []), [open, contacts])
+  // The deck must be the IDs snapshotted when the sheet opens. Deriving it
+  // from the live due-list would shrink it after every answer (the answered
+  // person stops being due) while the index keeps advancing — skipping every
+  // other person and ending the round early.
+  const [deckIds, setDeckIds] = useState<string[]>([])
+  useEffect(() => {
+    if (open) setDeckIds(quizDueContacts(contacts).slice(0, 15).map((c) => c.id))
+    // Intentionally not re-run on `contacts` — the snapshot is the point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+  const byId = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts])
+  const deck = useMemo(
+    () => deckIds.map((id) => byId.get(id)).filter((c): c is Contact => c != null),
+    [deckIds, byId],
+  )
   const [index, setIndex] = useState(0)
   const [revealed, setRevealed] = useState(false)
 

@@ -38,10 +38,11 @@ export function YearHeatmap({ data, color, weeks = 52 }: YearHeatmapProps) {
   }, [data, weeks])
 
   useEffect(() => {
-    // land on the most recent weeks
+    // Land on the most recent weeks — once, on mount. Keying this on the data
+    // would yank the scroll position back whenever a log lands.
     const el = scrollRef.current
     if (el) el.scrollLeft = el.scrollWidth
-  }, [grid])
+  }, [])
 
   return (
     <div>

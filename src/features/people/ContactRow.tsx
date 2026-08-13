@@ -52,7 +52,7 @@ export function ContactRow({ contact, onEdit }: ContactRowProps) {
       </button>
       {contact.instagram && (
         <a
-          href={`https://instagram.com/${contact.instagram}`}
+          href={`https://instagram.com/${contact.instagram.replace(/^@/, '')}`}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}

@@ -1,21 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
-import { Upload, Download, RefreshCw } from 'lucide-react'
+import { Upload, Download, RefreshCw, RotateCcw } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getSetting, setSetting } from '@/store/settings'
 import { importV1 } from '@/lib/importV1'
-import { exportBackup, mergeImport } from '@/lib/exportData'
-import { listSnapshots, downloadSnapshot, type Snapshot } from '@/lib/backups'
+import { exportBackup, mergeImport, importBackup } from '@/lib/exportData'
+import { listSnapshots, downloadSnapshot, snapshotNow, type Snapshot } from '@/lib/backups'
 import { parseInstagramExport, importInstagramAccounts } from '@/lib/instagramImport'
-import { pull as syncPull } from '@/lib/sync'
+import { pull as syncPull, lastSyncOk } from '@/lib/sync'
 import { pushSupported, isPushEnabled, enablePush, disablePush } from '@/lib/push'
 import { toast } from 'sonner'
 
 interface SettingsSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+function syncAgeLabel(ts: number): string {
+  if (!ts) return 'Never synced yet'
+  const mins = Math.round((Date.now() - ts) / 60_000)
+  if (mins < 1) return 'Synced just now'
+  if (mins < 60) return `Synced ${mins}m ago`
+  if (mins < 48 * 60) return `Synced ${Math.round(mins / 60)}h ago`
+  return `Synced ${Math.round(mins / (60 * 24))}d ago`
 }
 
 export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
@@ -39,7 +48,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
         toast.error('No accounts found — pick followers_1.json or following.json')
         return
       }
-      const limit = Math.max(1, Number(igLimit) || 25)
+      const limit = Math.min(200, Math.max(1, Number(igLimit) || 25))
       const r = importInstagramAccounts(accounts, limit)
       toast.success(
         `${r.created} added${r.linked ? `, ${r.linked} already linked` : ''}${r.skipped ? `, ${r.skipped} older skipped` : ''}`,
@@ -59,6 +68,23 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
       toast.success(`Merged ${result.rows} records into ${result.tables.join(', ')}`)
     } catch (err) {
       toast.error(err instanceof Error ? `Import failed: ${err.message}` : 'Import failed')
+    }
+  }
+
+  async function handleRestore(snap: Snapshot) {
+    if (!window.confirm(`Replace everything on this device with the ${snap.date} snapshot?`)) return
+    try {
+      // Keep a copy of the current state first, so a restore is undoable.
+      await snapshotNow()
+      const ok = importBackup(JSON.parse(snap.json))
+      if (!ok) {
+        toast.error('Snapshot file looks invalid')
+        return
+      }
+      toast.success(`Restored the ${snap.date} snapshot`)
+      listSnapshots().then(setSnapshots).catch(() => {})
+    } catch (err) {
+      toast.error(err instanceof Error ? `Restore failed: ${err.message}` : 'Restore failed')
     }
   }
 
@@ -144,7 +170,8 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
               autoComplete="off"
             />
             <p className="text-[11px] text-muted-foreground">
-              Powers the AI voice capture and Mentor. Stored only on this device.
+              Powers the AI voice capture and Mentor. Kept on your devices and your own sync
+              worker — never in downloaded backup files.
             </p>
           </div>
 
@@ -194,6 +221,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
               />
               <p className="text-[11px] text-muted-foreground">
                 Mirrors your data across devices via your own Cloudflare Worker (see repo → workers/).
+                {syncUrl.trim() && <> · {syncAgeLabel(lastSyncOk())}</>}
               </p>
             </div>
             <Button
@@ -322,15 +350,20 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
             {snapshots.length > 0 && (
               <div className="pt-1">
                 <p className="mb-1 text-[11px] text-muted-foreground">
-                  Automatic weekly snapshots (kept on this device):
+                  Automatic snapshots (kept on this device):
                 </p>
                 <ul className="divide-y divide-border">
                   {snapshots.map((s) => (
                     <li key={s.id} className="flex items-center justify-between py-1.5">
                       <span className="font-mono text-xs">{s.date}</span>
-                      <Button size="sm" variant="ghost" onClick={() => downloadSnapshot(s)}>
-                        <Download className="size-3.5" /> Save
-                      </Button>
+                      <span className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => handleRestore(s)}>
+                          <RotateCcw className="size-3.5" /> Restore
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => downloadSnapshot(s)}>
+                          <Download className="size-3.5" /> Save
+                        </Button>
+                      </span>
                     </li>
                   ))}
                 </ul>

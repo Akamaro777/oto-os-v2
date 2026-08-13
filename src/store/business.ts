@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useTable } from 'tinybase/ui-react'
+import { useTable, useValues } from 'tinybase/ui-react'
 import { store } from './store'
 import { T, type Idea } from './schema'
 import { newId } from '@/lib/ids'
@@ -56,6 +56,9 @@ export interface Cumulative {
 /** Hours logged since the cumulative start date vs the cumulative target. */
 export function useBusinessCumulative(): Cumulative {
   const table = useTable(T.money, store) as Record<string, Cells>
+  // Depend on the values object so target/window edits in Settings apply live
+  // (the getters below are non-reactive on their own).
+  const values = useValues(store)
   return useMemo(() => {
     const start = getProfileString('bizCumulativeStart')
     let logged = 0
@@ -68,7 +71,9 @@ export function useBusinessCumulative(): Cumulative {
       start,
       end: getProfileString('bizCumulativeDate'),
     }
-  }, [table])
+    // `values` is deliberate: the body reads profile.* imperatively.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, values])
 }
 
 /* ── Ideas bank ── */
