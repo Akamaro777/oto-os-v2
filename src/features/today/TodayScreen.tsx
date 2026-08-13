@@ -18,6 +18,8 @@ import { GoalDetailSheet } from './GoalDetailSheet'
 import { NonNegotiables } from './NonNegotiables'
 import { StudyPlanCard } from './StudyPlanCard'
 import { WeeklyReview } from './WeeklyReview'
+import { StreaksCard } from './StreaksCard'
+import { ShutdownCard } from './ShutdownSheet'
 
 const STATUS_COLOR: Record<GoalStatus, string> = {
   complete: '#c9f158',
@@ -131,6 +133,16 @@ export function TodayScreen() {
         {/* Daily non-negotiables */}
         <StaggerItem>
           <NonNegotiables date={today} />
+        </StaggerItem>
+
+        {/* Evening shutdown (appears after 20:00 until the day is rated) */}
+        <StaggerItem>
+          <ShutdownCard date={today} nowMin={nowMin} />
+        </StaggerItem>
+
+        {/* Streaks */}
+        <StaggerItem>
+          <StreaksCard date={today} />
         </StaggerItem>
 
         {/* Sunday weekly review */}

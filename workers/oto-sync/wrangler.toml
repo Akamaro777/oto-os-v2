@@ -8,6 +8,15 @@ kv_namespaces = [
   { binding = "OTO", id = "46dff4ae95ef4fbb9ad5bb7fab716f27" }
 ]
 
+# TinyBase CRDT synchronizer (cell-level merge sync between live devices).
+[[durable_objects.bindings]]
+name = "OTO_DO"
+class_name = "OtoSyncDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["OtoSyncDO"]
+
 # 05:00 UTC = 07:00 CEST (morning briefing) · 19:30 UTC = 21:30 CEST (evening check-in)
 [triggers]
 crons = ["0 5 * * *", "30 19 * * *"]

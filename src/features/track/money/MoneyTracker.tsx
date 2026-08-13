@@ -90,7 +90,7 @@ export function MoneyTracker() {
       </TrackerCard>
 
       <TrackerCard title="Trend vs target">
-        <LineTrend data={series} color={MONEY} unit="" target={target} height={170} />
+        <LineTrend data={series} color={MONEY} unit="" target={target} height={170} time />
       </TrackerCard>
 
       <TrackerCard title="History">

@@ -15,6 +15,7 @@
  * - A remote snapshot with zero rows never replaces local data, and a local
  *   backup snapshot is taken before remote data overwrites un-pushed edits.
  */
+import { useEffect, useState } from 'react'
 import { store } from '@/store/store'
 import { getSetting } from '@/store/settings'
 import { snapshotNow } from '@/lib/backups'
@@ -90,6 +91,32 @@ function hasUnpushed(): boolean {
 /** Epoch ms of the last successful push or pull, for the Settings status line. */
 export function lastSyncOk(): number {
   return Number(localStorage.getItem(LAST_OK_KEY) ?? 0)
+}
+
+export type SyncHealth = 'off' | 'ok' | 'pending'
+
+/**
+ * Reactive sync health for the UI: 'pending' means local changes exist that
+ * the server hasn't confirmed for over 2 minutes — the signal that sync has
+ * silently died (rotated secret, offline) and data is diverging.
+ */
+export function useSyncHealth(): SyncHealth {
+  const [health, setHealth] = useState<SyncHealth>('off')
+  useEffect(() => {
+    const check = () => {
+      if (!configured()) return setHealth('off')
+      const stale = hasUnpushed() && Date.now() - getLocalLM() > 2 * 60_000
+      setHealth(stale ? 'pending' : 'ok')
+    }
+    check()
+    const t = setInterval(check, 30_000)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', check)
+    }
+  }, [])
+  return health
 }
 
 function markSyncOk(): void {
@@ -254,5 +281,7 @@ export function startSync(): Promise<boolean> {
       if (hasUnpushed()) void push()
     }
   })
+  // Live CRDT channel on top of the snapshot sync (cell-level merging).
+  void import('@/lib/syncWs').then((m) => m.startWsSyncLifecycle())
   return pull()
 }

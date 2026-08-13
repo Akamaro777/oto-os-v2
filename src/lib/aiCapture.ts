@@ -23,7 +23,29 @@ const PILLAR_HINT = `"category" must be one of: personal, body, social, money, s
 /** Prepended to every capture prompt — the input is speech-to-text, not typed prose. */
 const TRANSCRIPT_HINT = `The user input is a raw speech-to-text transcript: expect mis-heard words, missing punctuation, run-on numbers and filler words. Infer the intended meaning from context (e.g. "way 74" = weight 74, "for our steady" = 4h study) rather than taking odd words literally.`
 
-async function extract(system: string, text: string): Promise<Record<string, unknown>> {
+/* ── JSON Schema helpers (structured outputs make malformed JSON impossible) ── */
+
+const S = {
+  str: { type: 'string' } as const,
+  num: { type: 'number' } as const,
+  numOrNull: { anyOf: [{ type: 'number' }, { type: 'null' }] } as const,
+  strOrNull: { anyOf: [{ type: 'string' }, { type: 'null' }] } as const,
+  enum: (...values: string[]) => ({ type: 'string', enum: values }) as const,
+  arr: (items: unknown) => ({ type: 'array', items }) as const,
+  obj: (properties: Record<string, unknown>) =>
+    ({
+      type: 'object',
+      properties,
+      required: Object.keys(properties),
+      additionalProperties: false,
+    }) as const,
+}
+
+async function extract(
+  system: string,
+  text: string,
+  schema: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const key = getSetting('apiKey')
   if (!key) throw new AnthropicError('Add your Anthropic API key in Settings first.')
   const raw = await callMessages(key, {
@@ -33,7 +55,14 @@ async function extract(system: string, text: string): Promise<Record<string, unk
     messages: [{ role: 'user', content: text }],
     // Truncated JSON would otherwise surface as a misleading parse error.
     failOnMaxTokens: true,
+    jsonSchema: schema,
   })
+  return parseExtractedJson(raw, 'Could not parse the AI response — try rephrasing.')
+}
+
+/** Structured outputs guarantee valid JSON; the brace-slice is a last-resort
+ * fallback for model overrides pointing at models without schema support. */
+function parseExtractedJson(raw: string, errMsg: string): Record<string, unknown> {
   let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
   const start = s.indexOf('{')
   const end = s.lastIndexOf('}')
@@ -41,7 +70,7 @@ async function extract(system: string, text: string): Promise<Record<string, unk
   try {
     return JSON.parse(s) as Record<string, unknown>
   } catch {
-    throw new AnthropicError('Could not parse the AI response — try rephrasing.')
+    throw new AnthropicError(errMsg)
   }
 }
 
@@ -98,10 +127,18 @@ function applyPlanData(data: Record<string, unknown>, date: string): string {
   return `Planned: ${parts.join(' · ')}`
 }
 
-const PLAN_SHAPE = `Return ONLY JSON: {"top3": string[] (max 3, the most important outcomes),
-"blocks": [{"title": string, "start": "HH:MM", "end": "HH:MM", "category": string}],
-"tasks": [{"title": string, "priority": "high"|"med"|"low", "due": "YYYY-MM-DD"|"", "category": string}]}.
-${PILLAR_HINT} Keep titles short (2-6 words). No prose.`
+const PLAN_SHAPE = `Return JSON with "top3" (max 3, the most important outcomes),
+"blocks" ({title, start "HH:MM", end "HH:MM", category}), and
+"tasks" ({title, priority, due "YYYY-MM-DD" or "", category}).
+${PILLAR_HINT} Keep titles short (2-6 words).`
+
+const PLAN_SCHEMA = S.obj({
+  top3: S.arr(S.str),
+  blocks: S.arr(S.obj({ title: S.str, start: S.str, end: S.str, category: S.str })),
+  tasks: S.arr(
+    S.obj({ title: S.str, priority: S.enum('high', 'med', 'low'), due: S.str, category: S.str }),
+  ),
+})
 
 /** Voice-dictated day plan. */
 export async function captureDayPlan(text: string, date: string): Promise<string> {
@@ -109,7 +146,7 @@ export async function captureDayPlan(text: string, date: string): Promise<string
   const system = `You turn a spoken day-planning ramble into a structured plan. Target date: ${date} (today is ${today}).
 Time blocks: infer sensible times between 07:00-23:00 if not stated; 60-120min defaults. Standalone to-dos go in "tasks".
 ${PLAN_SHAPE}`
-  const data = await extract(system, text)
+  const data = await extract(system, text, PLAN_SCHEMA)
   return applyPlanData(data, date)
 }
 
@@ -184,21 +221,14 @@ Build the strongest realistic day IN OTO'S OWN STYLE: study the history above an
 
   const raw = await callMessages(key, {
     model: MODELS.sonnet,
-    maxTokens: 1500,
+    maxTokens: 2500,
     system: `You are an elite personal scheduler. ${PLAN_SHAPE}`,
     messages: [{ role: 'user', content: context }],
     failOnMaxTokens: true,
+    jsonSchema: PLAN_SCHEMA,
+    disableThinking: true,
   })
-  let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
-  const start = s.indexOf('{')
-  const end = s.lastIndexOf('}')
-  if (start !== -1 && end !== -1) s = s.slice(start, end + 1)
-  let data: Record<string, unknown>
-  try {
-    data = JSON.parse(s) as Record<string, unknown>
-  } catch {
-    throw new AnthropicError('Could not parse the AI plan — try again.')
-  }
+  const data = parseExtractedJson(raw, 'Could not parse the AI plan — try again.')
   return applyPlanData(data, date)
 }
 
@@ -220,7 +250,21 @@ Return ONLY JSON: {"people": [{"name": string (use a descriptor like "Tall guy f
 "instagram": string (handle without @, "" if not mentioned),
 "tags": string[] (1-3 short lowercase context tags; [] if unclear),
 "category": one of "gym"|"dorm"|"approached"|"nus"|"smu"|"street"|"business"|"other" (where/how they were met; "approached" means a girl he approached; "other" if unclear)}]}. No prose.`
-  const data = await extract(system, text)
+  const PEOPLE_SCHEMA = S.obj({
+    people: S.arr(
+      S.obj({
+        name: S.str,
+        met: S.str,
+        cadenceDays: S.num,
+        birthday: S.str,
+        notes: S.str,
+        instagram: S.str,
+        tags: S.arr(S.str),
+        category: S.enum('gym', 'dorm', 'approached', 'nus', 'smu', 'street', 'business', 'other'),
+      }),
+    ),
+  })
+  const data = await extract(system, text, PEOPLE_SCHEMA)
 
   const people = arr(data.people)
   // Tolerate a single-object response from the model.
@@ -257,7 +301,13 @@ export async function captureDeal(text: string): Promise<string> {
 Return ONLY JSON: {"name": string (client or company name), "mrr": number (EUR per month, 0 if unknown),
 "status": "lead"|"talking"|"closed"|"lost", "notes": string (context worth keeping, "" if none)}.
 Default status "lead" unless the wording clearly indicates a conversation ("talking"), a signed/paying client ("closed") or a dead deal ("lost"). No prose.`
-  const data = await extract(system, text)
+  const DEAL_SCHEMA = S.obj({
+    name: S.str,
+    mrr: S.num,
+    status: S.enum('lead', 'talking', 'closed', 'lost'),
+    notes: S.str,
+  })
+  const data = await extract(system, text, DEAL_SCHEMA)
   const name = str(data.name)
   if (!name) throw new AnthropicError('No client name detected.')
   const { createDeal } = await import('@/store/deals')
@@ -297,11 +347,29 @@ Return ONLY JSON:
 "mockScore": number|null (total GMAT score if this is a score report),
 "errors": [{"section": "quant"|"verbal"|"di", "topic": string (short, lowercase), "reason": "concept"|"careless"|"time"|"", "note": string (brief, "" if none)}]}.
 List one errors[] entry per wrong question you can identify. Use "di" for Data Insights / Integrated Reasoning. Infer topic from the question content when possible. No prose.`
+  const PHOTO_SCHEMA = S.obj({
+    kind: S.enum('practice', 'mock', 'errorlist'),
+    date: S.strOrNull,
+    problems: S.numOrNull,
+    correct: S.numOrNull,
+    topic: S.str,
+    mockScore: S.numOrNull,
+    errors: S.arr(
+      S.obj({
+        section: S.enum('quant', 'verbal', 'di'),
+        topic: S.str,
+        reason: S.enum('concept', 'careless', 'time', ''),
+        note: S.str,
+      }),
+    ),
+  })
   const raw = await callMessages(key, {
     model: MODELS.sonnet,
-    maxTokens: 3000,
+    maxTokens: 4000,
     system,
     failOnMaxTokens: true,
+    jsonSchema: PHOTO_SCHEMA,
+    disableThinking: true,
     messages: [
       {
         role: 'user',
@@ -309,16 +377,7 @@ List one errors[] entry per wrong question you can identify. Use "di" for Data I
       },
     ],
   })
-  let s = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
-  const start = s.indexOf('{')
-  const end = s.lastIndexOf('}')
-  if (start !== -1 && end !== -1) s = s.slice(start, end + 1)
-  let data: Record<string, unknown>
-  try {
-    data = JSON.parse(s) as Record<string, unknown>
-  } catch {
-    throw new AnthropicError('Could not read the photo — try a clearer shot.')
-  }
+  const data = parseExtractedJson(raw, 'Could not read the photo — try a clearer shot.')
   const kind = ['practice', 'mock', 'errorlist'].includes(str(data.kind))
     ? (str(data.kind) as GmatPhotoExtract['kind'])
     : 'practice'
@@ -376,7 +435,18 @@ export async function captureEvents(text: string): Promise<string> {
   const system = `You turn spoken plans into calendar events. Today is ${today}.
 Return ONLY JSON: {"events": [{"title": string, "date": "YYYY-MM-DD", "time": "HH:MM" or "", "category": "personal"|"body"|"social"|"money"|"study", "notes": string}]}.
 Resolve relative dates ("next Tuesday") from today. No prose.`
-  const data = await extract(system, text)
+  const EVENTS_SCHEMA = S.obj({
+    events: S.arr(
+      S.obj({
+        title: S.str,
+        date: S.str,
+        time: S.str,
+        category: S.enum('personal', 'body', 'social', 'money', 'study'),
+        notes: S.str,
+      }),
+    ),
+  })
+  const data = await extract(system, text, EVENTS_SCHEMA)
   const { createEvent } = await import('@/store/events')
   let count = 0
   let firstTitle = ''
@@ -407,7 +477,15 @@ Return ONLY JSON (omit or null anything not mentioned):
 {"weight": number|null (kg), "sleep": number|null (hours),
 "businessHours": number|null (hours worked on business), "studyHours": number|null (GMAT/study hours),
 "calls": number|null (cold calls made), "rating": number|null (1-10 day rating)}. No prose.`
-  const data = await extract(system, text)
+  const LOG_SCHEMA = S.obj({
+    weight: S.numOrNull,
+    sleep: S.numOrNull,
+    businessHours: S.numOrNull,
+    studyHours: S.numOrNull,
+    calls: S.numOrNull,
+    rating: S.numOrNull,
+  })
+  const data = await extract(system, text, LOG_SCHEMA)
 
   const parts: string[] = []
   const weight = num(data.weight)

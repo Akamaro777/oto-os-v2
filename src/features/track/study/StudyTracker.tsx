@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Minus, Plus, Trash2 } from 'lucide-react'
+import { Brain, Minus, Plus, Trash2 } from 'lucide-react'
 import { TrackerCard } from '@/components/TrackerCard'
 import { DayStepper } from '@/components/DayStepper'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,7 @@ import {
   deleteMockExam,
 } from '@/store/study'
 import { GmatCountdownCard, ExamProfileCard, WeakSpotsCard, GmatPhotoButton } from './GmatCards'
+import { DrillSheet, useDrillDueCount } from './DrillSheet'
 import { toast } from 'sonner'
 
 const CV = PILLAR_META.cv.color
@@ -39,6 +40,8 @@ const CV = PILLAR_META.cv.color
 export function StudyTracker() {
   const [date, setDate] = useSelectedDate()
   const [mockOpen, setMockOpen] = useState(false)
+  const [drillOpen, setDrillOpen] = useState(false)
+  const drillDue = useDrillDueCount()
 
   const log = useCvLog(date)
   const series = useStudySeries(7)
@@ -64,6 +67,20 @@ export function StudyTracker() {
       <ExamProfileCard />
 
       <WeakSpotsCard />
+
+      {/* Error drill — the "redo every miss cold" from the plan, as flashcards */}
+      <button
+        type="button"
+        onClick={() => setDrillOpen(true)}
+        className="glass edge-light pressable flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium"
+        style={{ color: CV }}
+      >
+        <Brain className="size-4" />
+        {drillDue > 0 ? `Drill ${Math.min(drillDue, 10)} logged errors` : 'Error drill — all clear'}
+        {drillDue > 10 && (
+          <span className="font-mono text-[10px] text-muted-foreground">({drillDue} due)</span>
+        )}
+      </button>
 
       <TrackerCard title="Study hours">
         <div className="flex items-center justify-between">
@@ -153,14 +170,24 @@ export function StudyTracker() {
           </Button>
         }
       >
-        <LineTrend data={mockSeries} color={CV} unit="" target={scoreTarget} height={160} />
+        <LineTrend data={mockSeries} color={CV} unit="" target={scoreTarget} height={160} time />
         {mocks.length > 0 && (
           <ul className="mt-3 divide-y divide-border">
             {[...mocks].reverse().map((m) => (
               <li key={m.id} className="flex items-center gap-2 py-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm tabular-nums">{m.score}</p>
-                  <p className="font-mono text-[11px] text-muted-foreground">{shortDate(m.date)}</p>
+                  <p className="font-mono text-[11px] text-muted-foreground">
+                    {shortDate(m.date)}
+                    {(m.quant != null || m.verbal != null || m.di != null) &&
+                      ` · ${[
+                        m.quant != null ? `Q${m.quant}` : null,
+                        m.verbal != null ? `V${m.verbal}` : null,
+                        m.di != null ? `DI${m.di}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}`}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -177,6 +204,7 @@ export function StudyTracker() {
       </TrackerCard>
 
       <MockDialog open={mockOpen} onOpenChange={setMockOpen} />
+      <DrillSheet open={drillOpen} onOpenChange={setDrillOpen} />
     </div>
   )
 }
@@ -229,14 +257,26 @@ function PracticeField({
 function MockDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [date, setDate] = useState(todayISO())
   const [score, setScore] = useState('')
+  const [quant, setQuant] = useState('')
+  const [verbal, setVerbal] = useState('')
+  const [di, setDi] = useState('')
 
   // Fresh defaults each open — the mount-time date can be days old by now.
   useEffect(() => {
     if (open) {
       setDate(todayISO())
       setScore('')
+      setQuant('')
+      setVerbal('')
+      setDi('')
     }
   }, [open])
+
+  function section(v: string): number | undefined {
+    if (!v.trim()) return undefined
+    const n = Number(v)
+    return Number.isFinite(n) && n >= 60 && n <= 90 ? n : undefined
+  }
 
   function handleAdd() {
     const s = Number(score)
@@ -244,7 +284,17 @@ function MockDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
       toast.error('GMAT total scores run 205–805')
       return
     }
-    addMockExam(date || todayISO(), s)
+    for (const [label, v] of [['Quant', quant], ['Verbal', verbal], ['DI', di]] as const) {
+      if (v.trim() && section(v) == null) {
+        toast.error(`${label} section scores run 60–90`)
+        return
+      }
+    }
+    addMockExam(date || todayISO(), s, {
+      quant: section(quant),
+      verbal: section(verbal),
+      di: section(di),
+    })
     toast.success('Mock added')
     setScore('')
     onOpenChange(false)
@@ -273,6 +323,29 @@ function MockDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
             <Label htmlFor="mock-date">Date</Label>
             <Input id="mock-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {(
+            [
+              ['mock-q', 'Quant', quant, setQuant],
+              ['mock-v', 'Verbal', verbal, setVerbal],
+              ['mock-di', 'DI', di, setDi],
+            ] as const
+          ).map(([id, label, value, set]) => (
+            <div key={id} className="space-y-1.5">
+              <Label htmlFor={id} className="text-[11px]">
+                {label}
+              </Label>
+              <Input
+                id={id}
+                type="text"
+                inputMode="numeric"
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                placeholder="60–90"
+              />
+            </div>
+          ))}
         </div>
         <DialogFooter>
           <Button className="w-full" onClick={handleAdd}>

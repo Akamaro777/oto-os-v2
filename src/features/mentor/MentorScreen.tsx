@@ -6,7 +6,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useChatMessages, addChatMessage, clearChat } from '@/store/chat'
 import { getSetting } from '@/store/settings'
-import { callMessages, MODELS, AnthropicError, type AnthropicMessage } from '@/lib/anthropic'
+import { callWithTools, MODELS, AnthropicError, type AnthropicMessage } from '@/lib/anthropic'
+import { MENTOR_TOOLS, MENTOR_EXECUTORS } from '@/lib/mentorTools'
 import { buildSystemPrompt, QUICK_PROMPTS } from '@/lib/mentorPrompt'
 import { SettingsSheet } from '@/features/settings/SettingsSheet'
 import { toast } from 'sonner'
@@ -36,20 +37,29 @@ export function MentorScreen() {
     setBusy(true)
     try {
       // Window the replayed history (cost grows per message otherwise) and
-      // skip error bubbles — they'd replay as things the mentor "said".
+      // skip error/activity bubbles — they'd replay as things the mentor said.
       const history: AnthropicMessage[] = [
         ...messages
-          .filter((m) => !m.content.startsWith('⚠'))
+          .filter((m) => !m.content.startsWith('⚠') && !m.content.startsWith('✓'))
           .slice(-30)
           .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         { role: 'user', content },
       ]
-      const reply = await callMessages(key, {
-        model: MODELS.sonnet,
-        maxTokens: 1024,
-        system: buildSystemPrompt(),
-        messages: history,
-      })
+      const { text: reply, activity } = await callWithTools(
+        key,
+        {
+          model: MODELS.sonnet,
+          maxTokens: 4000,
+          system: `${buildSystemPrompt()}
+
+You can also WRITE to the app with your tools. When the user reports something loggable (study hours, calls, weight, day rating) or asks you to add a task/event/person, call the matching tool — don't just acknowledge it in words. Confirm briefly after logging.`,
+          messages: history,
+          tools: MENTOR_TOOLS,
+        },
+        MENTOR_EXECUTORS,
+      )
+      // Tool actions become small ✓ bubbles (excluded from API replay above).
+      for (const a of activity) addChatMessage('assistant', `✓ ${a.summary}`)
       addChatMessage('assistant', reply)
     } catch (err) {
       const msg = err instanceof AnthropicError ? err.message : 'Request failed'
@@ -118,23 +128,32 @@ export function MentorScreen() {
               </div>
             </div>
           ) : (
-            messages.map((m) => (
-              <div
-                key={m.id}
-                className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}
-              >
-                <div
-                  className={cn(
-                    'max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm',
-                    m.role === 'user'
-                      ? 'rounded-br-sm bg-primary text-primary-foreground'
-                      : 'rounded-bl-sm bg-secondary text-foreground',
-                  )}
-                >
-                  {m.content}
+            messages.map((m) =>
+              m.content.startsWith('✓') ? (
+                // Tool activity — a quiet confirmation line, not a chat bubble.
+                <div key={m.id} className="flex justify-center">
+                  <span className="rounded-full bg-primary/10 px-3 py-1 font-mono text-[11px] text-primary">
+                    {m.content}
+                  </span>
                 </div>
-              </div>
-            ))
+              ) : (
+                <div
+                  key={m.id}
+                  className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}
+                >
+                  <div
+                    className={cn(
+                      'max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm',
+                      m.role === 'user'
+                        ? 'rounded-br-sm bg-primary text-primary-foreground'
+                        : 'rounded-bl-sm bg-secondary text-foreground',
+                    )}
+                  >
+                    {m.content}
+                  </div>
+                </div>
+              ),
+            )
           )}
           {busy && (
             <div className="flex justify-start">

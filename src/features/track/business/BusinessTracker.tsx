@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Minus, Plus, Trash2, Lightbulb } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Minus, Plus, Trash2, Lightbulb, Phone, Square } from 'lucide-react'
 import { TrackerCard } from '@/components/TrackerCard'
 import { DayStepper } from '@/components/DayStepper'
 import { Button } from '@/components/ui/button'
@@ -87,6 +87,8 @@ export function BusinessTracker() {
         </div>
       </TrackerCard>
 
+      <CallSessionCard date={date} calls={calls} />
+
       <TrackerCard title="Cold calls — last 7 days">
         <LineTrend data={callsSeries} color={MONEY} unit="" target={callsTarget} height={150} />
       </TrackerCard>
@@ -132,6 +134,112 @@ export function BusinessTracker() {
 
       <IdeaDialog open={ideaOpen} onOpenChange={setIdeaOpen} />
     </div>
+  )
+}
+
+const SESSION_KEY = 'oto-call-session'
+
+interface CallSession {
+  startTs: number
+  startCount: number
+}
+
+/**
+ * Call-session timer: start a block, tap per dial, see calls/hour live.
+ * Each tap writes straight to the day's count (no data to lose if the app
+ * dies); the session itself is just a start marker in localStorage, so it
+ * survives backgrounding.
+ */
+function CallSessionCard({ date, calls }: { date: string; calls: number }) {
+  const [session, setSession] = useState<CallSession | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as CallSession | null
+    } catch {
+      return null
+    }
+  })
+  const [, tick] = useState(0)
+
+  // Live clock while a session runs.
+  useEffect(() => {
+    if (!session) return
+    const t = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [session])
+
+  function start() {
+    const s = { startTs: Date.now(), startCount: calls }
+    localStorage.setItem(SESSION_KEY, JSON.stringify(s))
+    setSession(s)
+  }
+
+  function end() {
+    localStorage.removeItem(SESSION_KEY)
+    if (session) {
+      const made = calls - session.startCount
+      const mins = Math.max(1, Math.round((Date.now() - session.startTs) / 60_000))
+      toast.success(
+        made > 0
+          ? `Session done: ${made} calls in ${mins}m — ${Math.round((made / mins) * 60)}/hour`
+          : `Session ended after ${mins}m`,
+      )
+    }
+    setSession(null)
+  }
+
+  if (!session) {
+    return (
+      <button
+        type="button"
+        onClick={start}
+        className="glass edge-light pressable flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium"
+        style={{ color: MONEY }}
+      >
+        <Phone className="size-4" /> Start a call session
+      </button>
+    )
+  }
+
+  const elapsed = Math.max(0, Date.now() - session.startTs)
+  const mm = String(Math.floor(elapsed / 60_000)).padStart(2, '0')
+  const ss = String(Math.floor((elapsed % 60_000) / 1000)).padStart(2, '0')
+  const made = Math.max(0, calls - session.startCount)
+  const perHour = elapsed > 60_000 ? Math.round((made / (elapsed / 3_600_000)) * 1) : null
+
+  return (
+    <TrackerCard
+      title="Call session"
+      action={
+        <button
+          type="button"
+          onClick={end}
+          className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground"
+        >
+          <Square className="size-3 fill-current" /> End
+        </button>
+      }
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-mono text-2xl tabular-nums" style={{ color: MONEY }}>
+            {mm}:{ss}
+          </p>
+          <p className="font-mono text-[11px] text-muted-foreground">
+            {made} call{made === 1 ? '' : 's'}
+            {perHour != null && ` · ${perHour}/hour`}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setColdCalls(date, calls + 1)}
+          className="pressable flex size-16 items-center justify-center rounded-full text-2xl font-semibold text-background"
+          style={{ backgroundColor: MONEY, boxShadow: `0 0 20px ${MONEY}66` }}
+          aria-label="Log one call"
+        >
+          +1
+        </button>
+      </div>
+    </TrackerCard>
   )
 }
 

@@ -68,11 +68,29 @@ export function useBodyActivityMap(): Record<string, number> {
   }, [table])
 }
 
-/** Set (or clear when '') a numeric body field for a date. Accepts ',' or '.' decimals. */
-export function setBodyNumber(date: string, field: 'weight' | 'sleep' | 'water', value: string): void {
+/** Plausible entry ranges — a "684" typo for 68.4 must not flatten charts for good. */
+const BODY_BOUNDS: Record<'weight' | 'sleep' | 'water', [number, number]> = {
+  weight: [25, 250],
+  sleep: [0, 24],
+  water: [0, 25],
+}
+
+/** Set (or clear when '') a numeric body field for a date. Accepts ',' or '.' decimals.
+ * Returns false when the value was rejected as implausible. */
+export function setBodyNumber(
+  date: string,
+  field: 'weight' | 'sleep' | 'water',
+  value: string,
+): boolean {
   const num = parseDecimal(value)
-  if (value === '' || Number.isNaN(num)) store.delCell(T.body, date, field)
-  else store.setCell(T.body, date, field, num)
+  if (value === '' || Number.isNaN(num)) {
+    store.delCell(T.body, date, field)
+    return true
+  }
+  const [lo, hi] = BODY_BOUNDS[field]
+  if (num < lo || num > hi) return false
+  store.setCell(T.body, date, field, num)
+  return true
 }
 
 /* ── Weekly training grid (rowId = 'YYYY-Www') ── */

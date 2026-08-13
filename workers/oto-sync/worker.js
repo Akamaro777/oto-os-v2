@@ -1,9 +1,12 @@
 /**
  * oto.os sync + push Worker.
  *
- * Endpoints (all require header `X-Sync-Secret: <SYNC_SECRET>`):
+ * Endpoints (all except /ws/* require header `X-Sync-Secret: <SYNC_SECRET>`):
  *   GET  /state             → latest state snapshot (or null)
- *   PUT  /state             → store state snapshot (last-write-wins)
+ *   PUT  /state             → store state snapshot (last-write-wins + guards)
+ *   GET  /ws-token          → { token } short-lived HMAC token for the WS path
+ *   GET  /ws/<room>?t=…     → WebSocket upgrade to the TinyBase CRDT
+ *                             synchronizer Durable Object (token auth)
  *   GET  /push/vapid        → { publicKey } for Web Push subscription
  *   POST /push/subscribe    → { subscription } register a device
  *   POST /push/unsubscribe  → { endpoint } remove a device
@@ -11,9 +14,52 @@
  * Cron (see wrangler.toml) sends payload-less pushes; the app's service
  * worker turns them into the morning-briefing / evening check-in notification.
  *
- * Bindings: KV namespace `OTO`; secrets SYNC_SECRET, VAPID_PUBLIC_KEY,
- * VAPID_PRIVATE_JWK; var VAPID_SUBJECT (mailto:you@example.com).
+ * Bindings: KV namespace `OTO`; Durable Object `OtoSyncDO`; secrets
+ * SYNC_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_JWK; var VAPID_SUBJECT.
  */
+import {
+  WsServerDurableObject,
+  getWsServerDurableObjectFetch,
+} from 'tinybase/synchronizers/synchronizer-ws-server-durable-object'
+import { createDurableObjectStoragePersister } from 'tinybase/persisters/persister-durable-object-storage'
+import { createMergeableStore } from 'tinybase'
+
+/** CRDT relay + server-side copy, so an offline device catches up on merge. */
+export class OtoSyncDO extends WsServerDurableObject {
+  createPersister() {
+    return createDurableObjectStoragePersister(createMergeableStore(), this.ctx.storage)
+  }
+}
+
+const wsFetch = getWsServerDurableObjectFetch('OTO_DO')
+
+/* ── Short-lived WS auth tokens (the secret must never ride a URL) ── */
+
+const TOKEN_TTL_MS = 60_000
+
+async function hmacHex(secret, message) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message))
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function makeWsToken(env) {
+  const exp = Date.now() + TOKEN_TTL_MS
+  return `${exp}.${await hmacHex(env.SYNC_SECRET, String(exp))}`
+}
+
+async function validWsToken(token, env) {
+  const [expStr, sig] = String(token ?? '').split('.')
+  const exp = Number(expStr)
+  if (!Number.isFinite(exp) || exp < Date.now() || !sig) return false
+  return (await hmacHex(env.SYNC_SECRET, expStr)) === sig
+}
 
 const cors = (origin) => ({
   'Access-Control-Allow-Origin': origin || '*',
@@ -39,12 +85,25 @@ export default {
     const origin = pickOrigin(request, env)
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors(origin) })
 
+    const url = new URL(request.url)
+    const path = url.pathname.replace(/\/$/, '')
+
+    // WebSocket path: browsers can't set headers on upgrades, so auth rides
+    // a short-lived token minted by /ws-token below.
+    if (path.startsWith('/ws/')) {
+      if (!(await validWsToken(url.searchParams.get('t'), env))) {
+        return json({ error: 'unauthorized' }, 401, origin)
+      }
+      return wsFetch(request, env)
+    }
+
     if (request.headers.get('X-Sync-Secret') !== env.SYNC_SECRET) {
       return json({ error: 'unauthorized' }, 401, origin)
     }
 
-    const url = new URL(request.url)
-    const path = url.pathname.replace(/\/$/, '')
+    if (path === '/ws-token' && request.method === 'GET') {
+      return json({ token: await makeWsToken(env) }, 200, origin)
+    }
 
     if (path === '/state' && request.method === 'GET') {
       const state = await env.OTO.get('state')
@@ -74,7 +133,18 @@ export default {
       // don't have to parse the full stored state.
       const force = url.searchParams.get('force') === '1'
       if (!force) {
-        const storedLM = Number((await env.OTO.get('state-lm')) ?? 0)
+        let storedLM = Number((await env.OTO.get('state-lm')) ?? 0)
+        if (!storedLM) {
+          // Bootstrap: state written before the guard existed has no LM key —
+          // read it out of the stored snapshot so the first guarded PUT can't
+          // clobber real data with an old timestamp.
+          try {
+            const existing = await env.OTO.get('state')
+            if (existing) storedLM = Number(JSON.parse(existing)?._lastModified ?? 0)
+          } catch {
+            storedLM = 0
+          }
+        }
         if (incoming._lastModified < storedLM) {
           return json({ error: 'stale', storedLastModified: storedLM }, 409, origin)
         }

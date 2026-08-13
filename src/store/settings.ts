@@ -10,6 +10,8 @@ export type SettingKey =
   | 't212ProxySecret'
   | 'syncUrl'
   | 'syncSecret'
+  | 'modelSonnet'
+  | 'modelHaiku'
 
 export function getSetting(key: SettingKey): string {
   return String(store.getValue(`settings.${key}`) ?? '')

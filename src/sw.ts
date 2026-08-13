@@ -24,14 +24,53 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
 
-function notificationForNow(payload?: string): { title: string; body: string } {
+function notificationForNow(payload: string | undefined, gmatLine: string): { title: string; body: string } {
   if (payload) return { title: 'oto.os', body: payload }
   const h = new Date().getHours()
   if (h < 12)
-    return { title: 'Plan your day', body: 'Open oto.os — set your Top 3 and your first block.' }
+    return {
+      title: gmatLine ? `Plan your day — ${gmatLine}` : 'Plan your day',
+      body: 'Open oto.os — set your Top 3 and your first block.',
+    }
   if (h >= 17)
-    return { title: 'Close your rings', body: '30-second check-in: log the day, rate it, set tomorrow’s #1.' }
+    return {
+      title: 'Close your rings',
+      body: `30-second check-in: log the day, rate it, set tomorrow’s #1.${gmatLine ? ` ${gmatLine}.` : ''}`,
+    }
   return { title: 'oto.os', body: 'Quick check-in — how is the day tracking?' }
+}
+
+/** Days-to-GMAT from the tiny meta DB the app maintains (see lib/badge.ts). */
+async function gmatCountdownLine(): Promise<string> {
+  try {
+    const meta = await new Promise<Record<string, string> | undefined>((resolve, reject) => {
+      const open = indexedDB.open('oto-sw-meta', 1)
+      open.onupgradeneeded = () => {
+        if (!open.result.objectStoreNames.contains('kv')) open.result.createObjectStore('kv')
+      }
+      open.onerror = () => reject(open.error)
+      open.onsuccess = () => {
+        const db = open.result
+        const req = db.transaction('kv').objectStore('kv').get('meta')
+        req.onsuccess = () => {
+          db.close()
+          resolve(req.result as Record<string, string> | undefined)
+        }
+        req.onerror = () => {
+          db.close()
+          reject(req.error)
+        }
+      }
+    })
+    const target = meta?.gmatTargetDate
+    if (!target || !/^\d{4}-\d{2}-\d{2}$/.test(target)) return ''
+    const days = Math.round(
+      (Date.parse(`${target}T00:00:00`) - new Date().setHours(0, 0, 0, 0)) / 86_400_000,
+    )
+    return days > 0 ? `${days}d to GMAT` : ''
+  } catch {
+    return ''
+  }
 }
 
 self.addEventListener('push', (event) => {
@@ -41,14 +80,17 @@ self.addEventListener('push', (event) => {
   } catch {
     payload = undefined
   }
-  const { title, body } = notificationForNow(payload)
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: 'pwa-192.png',
-      badge: 'pwa-192.png',
-      tag: 'oto-os-checkin',
-    }),
+    (async () => {
+      const gmatLine = await gmatCountdownLine()
+      const { title, body } = notificationForNow(payload, gmatLine)
+      await self.registration.showNotification(title, {
+        body,
+        icon: 'pwa-192.png',
+        badge: 'pwa-192.png',
+        tag: 'oto-os-checkin',
+      })
+    })(),
   )
 })
 

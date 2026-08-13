@@ -32,7 +32,8 @@ export function useCvLog(date: string): CvLog | undefined {
 }
 
 export function setStudyHours(date: string, hours: number): void {
-  const h = Math.max(0, hours)
+  // Bound at the store: a day has 24 hours, whatever the input said.
+  const h = Math.min(24, Math.max(0, hours))
   if (h === 0) store.delCell(T.cv, date, 'studyHours')
   else store.setCell(T.cv, date, 'studyHours', h)
 }
@@ -41,25 +42,29 @@ export type PracticeField = 'problems' | 'correct' | 'time'
 
 export function setPracticeNumber(date: string, field: PracticeField, value: string): void {
   const n = Number(value)
-  if (value === '' || Number.isNaN(n)) store.delCell(T.cv, date, field)
-  else store.setCell(T.cv, date, field, n)
+  if (value === '' || Number.isNaN(n) || n < 0) store.delCell(T.cv, date, field)
+  else store.setCell(T.cv, date, field, Math.min(n, field === 'time' ? 1440 : 2000))
 }
 
 /** Cold calls done on a date (stored on the cv daily log; the money pillar reads it too). */
 export function setColdCalls(date: string, count: number): void {
-  const n = Math.max(0, Math.round(count))
+  const n = Math.min(1000, Math.max(0, Math.round(count)))
   if (n === 0) store.delCell(T.cv, date, 'calls')
   else store.setCell(T.cv, date, 'calls', n)
 }
 
-/** Cold calls per day for the trend chart (last `days` ending at `anchor`). */
-export function useColdCallsSeries(days = 7, anchor = todayISO()): { date: string; value: number }[] {
+/** Cold calls per day for the trend chart (last `days` ending at `anchor`).
+ * Unlogged days are null, not 0 — a gap must not drag the trend to the floor. */
+export function useColdCallsSeries(
+  days = 7,
+  anchor = todayISO(),
+): { date: string; value: number | null }[] {
   const table = useTable(T.cv, store) as Record<string, Cells>
   return useMemo(() => {
-    const out: { date: string; value: number }[] = []
+    const out: { date: string; value: number | null }[] = []
     for (let i = days - 1; i >= 0; i--) {
       const date = addDaysISO(anchor, -i)
-      out.push({ date, value: Number(table[date]?.calls ?? 0) })
+      out.push({ date, value: table[date]?.calls != null ? Number(table[date].calls) : null })
     }
     return out
   }, [table, days, anchor])
@@ -83,13 +88,19 @@ export function setPracticeTopic(date: string, topic: string): void {
   else store.delCell(T.cv, date, 'topic')
 }
 
-export function useStudySeries(days = 7, anchor = todayISO()): { date: string; value: number }[] {
+export function useStudySeries(
+  days = 7,
+  anchor = todayISO(),
+): { date: string; value: number | null }[] {
   const table = useTable(T.cv, store) as Record<string, Cells>
   return useMemo(() => {
-    const out: { date: string; value: number }[] = []
+    const out: { date: string; value: number | null }[] = []
     for (let i = days - 1; i >= 0; i--) {
       const date = addDaysISO(anchor, -i)
-      out.push({ date, value: Number(table[date]?.studyHours ?? 0) })
+      out.push({
+        date,
+        value: table[date]?.studyHours != null ? Number(table[date].studyHours) : null,
+      })
     }
     return out
   }, [table, days, anchor])
@@ -116,6 +127,9 @@ function rowToMock(id: string, row: Cells): MockExam {
     date: String(row.date ?? ''),
     score: Number(row.score ?? 0),
     ts: Number(row.ts ?? 0),
+    quant: row.quant != null ? Number(row.quant) : undefined,
+    verbal: row.verbal != null ? Number(row.verbal) : undefined,
+    di: row.di != null ? Number(row.di) : undefined,
   }
 }
 
@@ -127,9 +141,19 @@ export function useMockExams(): MockExam[] {
   )
 }
 
-export function addMockExam(date: string, score: number): string {
+export function addMockExam(
+  date: string,
+  score: number,
+  sections?: { quant?: number; verbal?: number; di?: number },
+): string {
   const id = newId()
-  store.setRow(T.mockExams, id, { date, score, ts: Date.now() })
+  const row: Cells = { date, score: Math.min(805, Math.max(205, score)), ts: Date.now() }
+  // Section scores run 60–90 on the current GMAT.
+  for (const key of ['quant', 'verbal', 'di'] as const) {
+    const v = sections?.[key]
+    if (v != null && Number.isFinite(v) && v >= 60 && v <= 90) row[key] = v
+  }
+  store.setRow(T.mockExams, id, row as Record<string, string | number | boolean>)
   return id
 }
 
@@ -151,6 +175,8 @@ function rowToError(id: string, row: Cells): GmatError {
     reason: String(row.reason ?? ''),
     note: row.note ? String(row.note) : undefined,
     ts: Number(row.ts ?? 0),
+    quizLevel: row.quizLevel != null ? Number(row.quizLevel) : undefined,
+    quizDue: row.quizDue ? String(row.quizDue) : undefined,
   }
 }
 
@@ -186,6 +212,32 @@ export function addGmatError(input: GmatErrorInput): string {
 
 export function deleteGmatError(id: string): void {
   store.delRow(T.gmatErrors, id)
+}
+
+/* ── Error drill (spaced repetition over the error log) ──
+ * Same engine as the People recall quiz: right → longer interval, wrong →
+ * back to tomorrow. "Redo every miss cold" as a daily dealable deck. */
+
+const DRILL_INTERVALS = [1, 3, 7, 16, 35, 90] // days until next review per level
+
+/** Errors due for a drill round: never drilled, or due date reached. */
+export function drillDueErrors(errors: GmatError[], today = todayISO()): GmatError[] {
+  return errors
+    .filter((e) => e.topic && (!e.quizDue || e.quizDue <= today))
+    .sort((a, b) => (a.quizLevel ?? 0) - (b.quizLevel ?? 0) || b.ts - a.ts)
+}
+
+export function recordDrillResult(id: string, correct: boolean, today = todayISO()): void {
+  if (!store.hasRow(T.gmatErrors, id)) return
+  const level = Number(store.getCell(T.gmatErrors, id, 'quizLevel') ?? 0)
+  const next = correct ? Math.min(level + 1, DRILL_INTERVALS.length) : 0
+  store.setCell(T.gmatErrors, id, 'quizLevel', next)
+  store.setCell(
+    T.gmatErrors,
+    id,
+    'quizDue',
+    addDaysISO(today, DRILL_INTERVALS[Math.min(next, DRILL_INTERVALS.length - 1)]),
+  )
 }
 
 export interface WeakSpot {

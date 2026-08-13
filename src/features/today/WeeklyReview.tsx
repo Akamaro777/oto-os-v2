@@ -9,7 +9,8 @@ import { T } from '@/store/schema'
 import { getSetting } from '@/store/settings'
 import { getProfileNumber } from '@/store/profile'
 import { useGmatErrors, aggregateWeakSpots } from '@/store/study'
-import { addDaysISO } from '@/lib/dates'
+import { useWeeklyVerdict, saveWeeklyVerdict } from '@/store/weeklyReview'
+import { addDaysISO, isoWeekKey } from '@/lib/dates'
 import { callMessages, MODELS, AnthropicError } from '@/lib/anthropic'
 import { toast } from 'sonner'
 
@@ -87,7 +88,9 @@ export function WeeklyReview({ date }: { date: string }) {
   const bodyTable = useTable(T.body, store)
   const mocksTable = useTable(T.mockExams, store)
   const errors = useGmatErrors()
-  const [aiText, setAiText] = useState('')
+  // Persisted per ISO week — a paid API result must survive tab switches.
+  const week = isoWeekKey(date)
+  const aiText = useWeeklyVerdict(week)
   const [busy, setBusy] = useState(false)
 
   const callsTarget = getProfileNumber('callsDailyTarget') || 70
@@ -122,11 +125,11 @@ export function WeeklyReview({ date }: { date: string }) {
 Write a direct 3-4 sentence weekly review: what went well, what slipped, and the single most important focus for next week. No fluff, no headers.`
       const text = await callMessages(key, {
         model: MODELS.sonnet,
-        maxTokens: 400,
+        maxTokens: 1500,
         system: 'You are a direct, no-bullshit accountability mentor. Use hyphens not em-dashes.',
         messages: [{ role: 'user', content: prompt }],
       })
-      setAiText(text)
+      saveWeeklyVerdict(week, text)
     } catch (err) {
       toast.error(err instanceof AnthropicError ? err.message : 'Review failed')
     } finally {

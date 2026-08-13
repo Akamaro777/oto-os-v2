@@ -101,6 +101,9 @@ export interface GmatError {
   reason: string // 'concept' | 'careless' | 'time' | ''
   note?: string
   ts: number
+  /** Drill spaced-repetition state (see store/study.ts drill helpers). */
+  quizLevel?: number
+  quizDue?: string // YYYY-MM-DD
 }
 
 /** One logged conversation with a contact (relationship memory timeline). */
@@ -154,6 +157,17 @@ export interface MockExam {
   id: string
   date: string
   score: number
+  ts: number
+  /** Optional section scores (60–90 scale). */
+  quant?: number
+  verbal?: number
+  di?: number
+}
+
+/** Persisted Sunday AI verdict (rowId = ISO week 'YYYY-Www'). */
+export interface WeeklyReviewRow {
+  week: string
+  text: string
   ts: number
 }
 
@@ -292,6 +306,7 @@ export const T = {
   revenue: 'revenue',
   gmatErrors: 'gmatErrors',
   interactions: 'interactions',
+  weeklyReviews: 'weeklyReviews',
 } as const
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -370,6 +385,9 @@ export const tablesSchema: TablesSchema = {
     date: { type: 'string' },
     score: { type: 'number' },
     ts: { type: 'number' },
+    quant: { type: 'number' },
+    verbal: { type: 'number' },
+    di: { type: 'number' },
   },
   body: {
     weight: { type: 'number' },
@@ -472,11 +490,18 @@ export const tablesSchema: TablesSchema = {
     reason: { type: 'string' },
     note: { type: 'string' },
     ts: { type: 'number' },
+    quizLevel: { type: 'number' },
+    quizDue: { type: 'string' },
   },
   interactions: {
     contactId: { type: 'string' },
     date: { type: 'string' },
     note: { type: 'string' },
+    ts: { type: 'number' },
+  },
+  weeklyReviews: {
+    week: { type: 'string' },
+    text: { type: 'string' },
     ts: { type: 'number' },
   },
 }
@@ -554,4 +579,7 @@ export const valuesSchema: ValuesSchema = {
   'settings.t212ProxySecret': { type: 'string', default: '' },
   'settings.syncUrl': { type: 'string', default: '' },
   'settings.syncSecret': { type: 'string', default: '' },
+  /** Optional model-id overrides — bump models without redeploying. */
+  'settings.modelSonnet': { type: 'string', default: '' },
+  'settings.modelHaiku': { type: 'string', default: '' },
 }

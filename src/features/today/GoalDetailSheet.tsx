@@ -142,7 +142,7 @@ function GoalDetailContent({
             <h3 className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
               History
             </h3>
-            <LineTrend data={series} color={color} target={star.targetValue || undefined} height={170} />
+            <LineTrend data={series} color={color} target={star.targetValue || undefined} height={170} time />
           </div>
         )}
         </div>

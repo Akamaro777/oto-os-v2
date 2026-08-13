@@ -1,5 +1,6 @@
 
 import { Dumbbell } from 'lucide-react'
+import { toast } from 'sonner'
 import { TrackerCard } from '@/components/TrackerCard'
 import { DayStepper } from '@/components/DayStepper'
 import { Input } from '@/components/ui/input'
@@ -39,13 +40,17 @@ export function BodyTracker() {
             id="body-weight"
             label="Weight (kg)"
             value={log?.weight}
-            onCommit={(v) => setBodyNumber(date, 'weight', v)}
+            onCommit={(v) => {
+              if (!setBodyNumber(date, 'weight', v)) toast.error('Weight looks off — 25–250 kg')
+            }}
           />
           <NumberField
             id="body-sleep"
             label="Sleep (h)"
             value={log?.sleep}
-            onCommit={(v) => setBodyNumber(date, 'sleep', v)}
+            onCommit={(v) => {
+              if (!setBodyNumber(date, 'sleep', v)) toast.error('Sleep looks off — 0–24 h')
+            }}
           />
         </div>
       </TrackerCard>
@@ -61,11 +66,11 @@ export function BodyTracker() {
 
       {/* Charts */}
       <TrackerCard title="Weight — all time">
-        <LineTrend data={weightSeries} color={BODY} unit="kg" />
+        <LineTrend data={weightSeries} color={BODY} unit="kg" time />
       </TrackerCard>
 
       <TrackerCard title="Sleep — all time">
-        <LineTrend data={sleepSeries} color="#a78bfa" unit="h" />
+        <LineTrend data={sleepSeries} color="#a78bfa" unit="h" time />
       </TrackerCard>
 
       <TrackerCard title="Training totals">
