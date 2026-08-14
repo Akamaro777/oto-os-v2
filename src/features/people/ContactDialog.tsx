@@ -36,10 +36,13 @@ interface ContactDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   contact?: Contact
+  /** Prefill for a NEW contact (e.g. from an Instagram screenshot); ignored when editing. */
+  draft?: Partial<Contact>
 }
 
-export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProps) {
+export function ContactDialog({ open, onOpenChange, contact, draft }: ContactDialogProps) {
   const isEdit = contact != null
+  const base = contact ?? draft
   const [name, setName] = useState('')
   const [met, setMet] = useState('')
   const [lastContact, setLastContact] = useState('')
@@ -54,17 +57,17 @@ export function ContactDialog({ open, onOpenChange, contact }: ContactDialogProp
 
   useEffect(() => {
     if (!open) return
-    setName(contact?.name ?? '')
-    setMet(contact?.met ?? '')
-    setLastContact(contact?.lastContact ?? (isEdit ? '' : todayISO()))
-    setCadence(contact?.cadenceDays ? String(contact.cadenceDays) : '')
-    setBirthday(contact?.birthday ?? '')
-    setNotes(contact?.notes ?? '')
-    setTags(contact?.tags ?? '')
-    setCategory(contact?.category ?? 'other')
-    setInstagram(contact?.instagram ?? '')
-    setPhoto(contact?.photo ?? '')
-  }, [open, contact, isEdit])
+    setName(base?.name ?? '')
+    setMet(base?.met ?? '')
+    setLastContact(base?.lastContact ?? (isEdit ? '' : todayISO()))
+    setCadence(base?.cadenceDays ? String(base.cadenceDays) : '')
+    setBirthday(base?.birthday ?? '')
+    setNotes(base?.notes ?? '')
+    setTags(base?.tags ?? '')
+    setCategory(base?.category ?? 'other')
+    setInstagram(base?.instagram ?? '')
+    setPhoto(base?.photo ?? '')
+  }, [open, base, isEdit])
 
   async function handlePhoto(file: File) {
     try {

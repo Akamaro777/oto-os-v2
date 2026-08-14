@@ -428,6 +428,72 @@ function setPracticeNumberFromPhoto(date: string, problems: number, correct: num
   if (correct != null) store.setCell(T.cv, date, 'correct', correct)
 }
 
+/* ── Instagram screenshot → contact card (vision) ── */
+
+export interface InstagramExtract {
+  username: string
+  displayName: string
+  /** Facts worth remembering, one per line (bio, occupation, school, city…). */
+  facts: string
+  /** Bounding box of the profile picture, fractions of the image; null if none. */
+  avatar: { x: number; y: number; w: number; h: number } | null
+}
+
+/**
+ * Read a screenshot of someone's Instagram profile: handle, display name,
+ * bio facts, and where the avatar sits so the caller can crop it out.
+ * The caller shows a prefilled contact card before anything is saved.
+ */
+export async function extractInstagramProfile(dataUrl: string): Promise<InstagramExtract> {
+  const key = getSetting('apiKey')
+  if (!key) throw new AnthropicError('Add your Anthropic API key in Settings first.')
+  const system = `You read a screenshot from Instagram — usually a profile page of a person the user just met — to build a contact card.
+Return ONLY JSON:
+{"username": string — the account handle shown in the screenshot, WITHOUT the "@" ("" if not visible),
+"displayName": string — the person's display name from the bio area ("" if none shown),
+"facts": string — everything worth remembering about the person, ONE fact per line: each bio line, occupation/category label, school, city, links, mutual context. "" if nothing useful,
+"avatar": {"x": number, "y": number, "w": number, "h": number} — the bounding box of the MAIN circular profile picture, each value a fraction (0-1) of the full image width/height, or null if no clear profile photo is visible.
+The main avatar on a profile page is the large circle near the top of the profile — never a post thumbnail, a highlight bubble, or another account's story circle. Make the box tight around the circle. No prose.`
+  const IG_SCHEMA = S.obj({
+    username: S.str,
+    displayName: S.str,
+    facts: S.str,
+    avatar: {
+      anyOf: [S.obj({ x: S.num, y: S.num, w: S.num, h: S.num }), { type: 'null' }],
+    },
+  })
+  const raw = await callMessages(key, {
+    model: MODELS.sonnet,
+    maxTokens: 1500,
+    system,
+    failOnMaxTokens: true,
+    jsonSchema: IG_SCHEMA,
+    disableThinking: true,
+    messages: [
+      {
+        role: 'user',
+        content: [imageBlock(dataUrl), { type: 'text', text: 'Extract the contact data from this Instagram screenshot.' }],
+      },
+    ],
+  })
+  const data = parseExtractedJson(raw, 'Could not read the screenshot — try a clearer one.')
+  const a = data.avatar as Record<string, unknown> | null
+  const box =
+    a && typeof a === 'object'
+      ? { x: num(a.x) ?? -1, y: num(a.y) ?? -1, w: num(a.w) ?? 0, h: num(a.h) ?? 0 }
+      : null
+  const validBox =
+    box != null &&
+    box.x >= 0 && box.x <= 1 && box.y >= 0 && box.y <= 1 &&
+    box.w > 0.01 && box.w <= 1 && box.h > 0.01 && box.h <= 1
+  return {
+    username: str(data.username).replace(/^@/, ''),
+    displayName: str(data.displayName),
+    facts: str(data.facts),
+    avatar: validBox ? box : null,
+  }
+}
+
 /* ── New calendar event(s) ── */
 
 export async function captureEvents(text: string): Promise<string> {
