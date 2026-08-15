@@ -28,6 +28,7 @@ import {
   deletePortfolioEntry,
 } from '@/store/portfolio'
 import { DealsCard } from './DealsCard'
+import { BudgetCard } from './BudgetCard'
 import { toast } from 'sonner'
 
 const MONEY = PILLAR_META.money.color
@@ -61,6 +62,8 @@ export function MoneyTracker() {
 
   return (
     <div className="space-y-4">
+      <BudgetCard />
+
       <DealsCard />
 
       <TrackerCard title="Net worth">

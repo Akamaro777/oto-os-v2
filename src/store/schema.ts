@@ -268,6 +268,16 @@ export interface BusinessPlan {
   ts: number
 }
 
+/** Daily spending-money snapshot (rowId = YYYY-MM-DD). `balance` is the last
+ * known Wise balance that day; `spent` is that day's outgoings when the
+ * statement API is available. */
+export interface WalletDay {
+  date: string
+  balance?: number
+  spent?: number
+  ts: number
+}
+
 /** Nightly voice debrief — raw transcript + AI summary (rowId = YYYY-MM-DD). */
 export interface Debrief {
   date: string
@@ -316,6 +326,7 @@ export const T = {
   interactions: 'interactions',
   weeklyReviews: 'weeklyReviews',
   debriefs: 'debriefs',
+  wallet: 'wallet',
 } as const
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -518,6 +529,11 @@ export const tablesSchema: TablesSchema = {
     summary: { type: 'string' },
     ts: { type: 'number' },
   },
+  wallet: {
+    balance: { type: 'number' },
+    spent: { type: 'number' },
+    ts: { type: 'number' },
+  },
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -572,6 +588,8 @@ export const valuesSchema: ValuesSchema = {
   'profile.bodiesTargetDate': { type: 'string', default: '2026-12-01' },
   'profile.bodiesStartDate': { type: 'string', default: '2026-08-06' },
   'profile.callsDailyTarget': { type: 'number', default: 70 },
+  /** Spending money that arrives on the 1st of each month (EUR). */
+  'profile.monthlyBudget': { type: 'number', default: 1700 },
   // Official exam profile (from the GMAC score report)
   'profile.examDate': { type: 'string', default: '' },
   'profile.examTotal': { type: 'number', default: 0 },
@@ -591,6 +609,8 @@ export const valuesSchema: ValuesSchema = {
   'settings.jbBinId': { type: 'string', default: '' },
   'settings.t212ProxyUrl': { type: 'string', default: '' },
   'settings.t212ProxySecret': { type: 'string', default: '' },
+  'settings.wiseProxyUrl': { type: 'string', default: '' },
+  'settings.wiseProxySecret': { type: 'string', default: '' },
   'settings.syncUrl': { type: 'string', default: '' },
   'settings.syncSecret': { type: 'string', default: '' },
   /** Optional model-id overrides — bump models without redeploying. */

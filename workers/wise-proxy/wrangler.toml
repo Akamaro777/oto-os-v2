@@ -1,0 +1,11 @@
+name = "wise-proxy"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://akamaro777.github.io"
+
+# Secrets (set via CLI, never commit values):
+#   npx wrangler secret put WISE_TOKEN            # Wise personal API token (read-only)
+#   npx wrangler secret put PROXY_SECRET          # any long random string; same value goes in app Settings
+#   npx wrangler secret put WISE_PRIVATE_KEY_PEM  # optional — enables /spend (see README)

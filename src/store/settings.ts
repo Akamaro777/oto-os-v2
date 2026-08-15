@@ -8,6 +8,8 @@ export type SettingKey =
   | 'jbBinId'
   | 't212ProxyUrl'
   | 't212ProxySecret'
+  | 'wiseProxyUrl'
+  | 'wiseProxySecret'
   | 'syncUrl'
   | 'syncSecret'
   | 'modelSonnet'

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getSetting, setSetting } from '@/store/settings'
+import { getProfileNumber, setProfileNumber } from '@/store/profile'
 import { importV1 } from '@/lib/importV1'
 import { exportBackup, mergeImport, importBackup } from '@/lib/exportData'
 import { listSnapshots, downloadSnapshot, snapshotNow, type Snapshot } from '@/lib/backups'
@@ -31,6 +32,9 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
   const [apiKey, setApiKey] = useState('')
   const [proxyUrl, setProxyUrl] = useState('')
   const [proxySecret, setProxySecret] = useState('')
+  const [wiseUrl, setWiseUrl] = useState('')
+  const [wiseSecret, setWiseSecret] = useState('')
+  const [budget, setBudget] = useState('')
   const [syncUrl, setSyncUrl] = useState('')
   const [syncSecret, setSyncSecret] = useState('')
   const [pushOn, setPushOn] = useState(false)
@@ -127,6 +131,9 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
     setApiKey(getSetting('apiKey'))
     setProxyUrl(getSetting('t212ProxyUrl'))
     setProxySecret(getSetting('t212ProxySecret'))
+    setWiseUrl(getSetting('wiseProxyUrl'))
+    setWiseSecret(getSetting('wiseProxySecret'))
+    setBudget(String(getProfileNumber('monthlyBudget') || 1700))
     setSyncUrl(getSetting('syncUrl'))
     setSyncSecret(getSetting('syncSecret'))
     isPushEnabled().then(setPushOn).catch(() => setPushOn(false))
@@ -137,6 +144,10 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
     setSetting('apiKey', apiKey.trim())
     setSetting('t212ProxyUrl', proxyUrl.trim())
     setSetting('t212ProxySecret', proxySecret.trim())
+    setSetting('wiseProxyUrl', wiseUrl.trim())
+    setSetting('wiseProxySecret', wiseSecret.trim())
+    const b = Number(budget)
+    if (Number.isFinite(b) && b > 0) setProfileNumber('monthlyBudget', b)
     const hadSync = getSetting('syncUrl').length > 0
     setSetting('syncUrl', syncUrl.trim())
     setSetting('syncSecret', syncSecret.trim())
@@ -196,6 +207,44 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
               onChange={(e) => setProxySecret(e.target.value)}
               autoComplete="off"
             />
+          </div>
+
+          <div className="space-y-4 border-t border-border pt-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="set-wise-url">Wise proxy URL</Label>
+              <Input
+                id="set-wise-url"
+                value={wiseUrl}
+                onChange={(e) => setWiseUrl(e.target.value)}
+                placeholder="https://wise-proxy.….workers.dev"
+                inputMode="url"
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="set-wise-secret">Wise proxy secret</Label>
+              <Input
+                id="set-wise-secret"
+                type="password"
+                value={wiseSecret}
+                onChange={(e) => setWiseSecret(e.target.value)}
+                autoComplete="off"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Feeds the Spending money card (see repo → workers/wise-proxy for setup).
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="set-budget">Monthly spending money (€)</Label>
+              <Input
+                id="set-budget"
+                type="number"
+                min={1}
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="1700"
+              />
+            </div>
           </div>
 
           <div className="space-y-4 border-t border-border pt-4">
