@@ -5,14 +5,18 @@
  * never live in the browser), so this Worker holds the token and relays two
  * read-only views (all endpoints require header `X-Proxy-Secret`):
  *
- *   GET /summary                     → { balance, currency }   EUR balance
- *   GET /spend?start=&end=           → { byDay: { "YYYY-MM-DD": eurSpent } }
+ *   GET /summary           → { balance, currency: "EUR", breakdown: [...] }
+ *   GET /spend?start=&end= → { byDay: { "YYYY-MM-DD": eurSpent } }
+ *   GET /debug             → balance shapes (for troubleshooting)
  *
- * /spend reads the balance statement, which is behind PSD2 Strong Customer
+ * The account is multi-currency (money mostly sits in SGD), while the app
+ * budgets in EUR — so every number is converted with Wise's live mid-market
+ * rate before it leaves the Worker.
+ *
+ * /spend reads balance statements, which sit behind PSD2 Strong Customer
  * Authentication: Wise replies 403 with an `x-2fa-approval` one-time token,
- * we sign that token with the RSA private key (SHA-256, PKCS#1 v1.5, base64)
- * and retry with the signature in `X-Signature`. The key pair is created once
- * and its public half uploaded to Wise (see README). Without the key secret,
+ * we sign it with the RSA private key (SHA-256, PKCS#1 v1.5, base64) and
+ * retry with the signature in `X-Signature`. Without the key secret,
  * /summary still works — the app degrades to balance-only tracking.
  *
  * Secrets: WISE_TOKEN, PROXY_SECRET, WISE_PRIVATE_KEY_PEM (optional).
@@ -77,8 +81,20 @@ async function wiseGetSca(env, path) {
   return { data: await resp.json() }
 }
 
-/** The personal profile id, and the EUR balance on it. */
-async function findEurBalance(env) {
+/** Mid-market rate ccy→EUR via Wise (1 for EUR itself). */
+async function rateToEur(env, ccy) {
+  if (ccy === 'EUR') return 1
+  const resp = await wiseGet(env, `/v1/rates?source=${ccy}&target=EUR`)
+  if (!resp.ok) return null
+  const rates = await resp.json()
+  const rate = Number(rates?.[0]?.rate)
+  return Number.isFinite(rate) && rate > 0 ? rate : null
+}
+
+const round2 = (n) => Math.round(n * 100) / 100
+
+/** Personal profile + its spendable (STANDARD) balances. */
+async function getAccount(env) {
   const profilesResp = await wiseGet(env, '/v1/profiles')
   if (!profilesResp.ok) return { error: `Wise profiles ${profilesResp.status}`, status: 502 }
   const profiles = await profilesResp.json()
@@ -88,9 +104,7 @@ async function findEurBalance(env) {
   const balResp = await wiseGet(env, `/v4/profiles/${profile.id}/balances?types=STANDARD`)
   if (!balResp.ok) return { error: `Wise balances ${balResp.status}`, status: 502 }
   const balances = await balResp.json()
-  const eur = balances.find((b) => b.currency === 'EUR') ?? balances[0]
-  if (!eur) return { error: 'No balance found', status: 502 }
-  return { profileId: profile.id, balanceId: eur.id, currency: eur.currency, amount: eur.amount?.value ?? 0 }
+  return { profileId: profile.id, balances }
 }
 
 export default {
@@ -102,10 +116,27 @@ export default {
       return json(env, { error: 'Unauthorized' }, 401)
     }
 
+    // Diagnostics: balance shapes only (no profile PII).
+    if (url.pathname === '/debug') {
+      const acct = await getAccount(env)
+      if (acct.error) return json(env, { error: acct.error }, acct.status)
+      return json(env, { balances: acct.balances })
+    }
+
     if (url.pathname === '/summary') {
-      const r = await findEurBalance(env)
-      if (r.error) return json(env, { error: r.error }, r.status)
-      return json(env, { balance: r.amount, currency: r.currency })
+      const acct = await getAccount(env)
+      if (acct.error) return json(env, { error: acct.error }, acct.status)
+      let total = 0
+      const breakdown = []
+      for (const b of acct.balances) {
+        const value = Number(b.amount?.value ?? 0)
+        if (!value) continue
+        const rate = await rateToEur(env, b.currency)
+        if (rate == null) return json(env, { error: `No EUR rate for ${b.currency}` }, 502)
+        total += value * rate
+        breakdown.push({ currency: b.currency, value, eur: round2(value * rate) })
+      }
+      return json(env, { balance: round2(total), currency: 'EUR', breakdown })
     }
 
     if (url.pathname === '/spend') {
@@ -114,25 +145,36 @@ export default {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
         return json(env, { error: 'start and end must be YYYY-MM-DD' }, 400)
       }
-      const acct = await findEurBalance(env)
+      const acct = await getAccount(env)
       if (acct.error) return json(env, { error: acct.error }, acct.status)
 
-      const path =
-        `/v1/profiles/${acct.profileId}/balance-statements/${acct.balanceId}/statement.json` +
-        `?currency=${acct.currency}&intervalStart=${start}T00:00:00.000Z&intervalEnd=${end}T23:59:59.999Z&type=COMPACT`
-      const r = await wiseGetSca(env, path)
-      if (r.error) return json(env, { error: r.error }, r.status)
-
-      // Sum outgoing money per calendar day; card refunds (CREDITs from
-      // merchants) are ignored rather than netted — simpler and safer.
+      // Statements are per balance; read every currency that holds (or held)
+      // money and convert each day's DEBITs to EUR. Card refunds (CREDITs)
+      // are ignored rather than netted — simpler and safer.
       const byDay = {}
-      for (const tx of r.data.transactions ?? []) {
-        if (tx.type !== 'DEBIT') continue
-        const day = String(tx.date ?? '').slice(0, 10)
-        if (!day) continue
-        const value = Math.abs(Number(tx.amount?.value ?? 0))
-        if (!Number.isFinite(value)) continue
-        byDay[day] = Math.round(((byDay[day] ?? 0) + value) * 100) / 100
+      for (const b of acct.balances) {
+        const path =
+          `/v1/profiles/${acct.profileId}/balance-statements/${b.id}/statement.json` +
+          `?currency=${b.currency}&intervalStart=${start}T00:00:00.000Z&intervalEnd=${end}T23:59:59.999Z&type=COMPACT`
+        const r = await wiseGetSca(env, path)
+        if (r.error) {
+          // Surface a real config problem, but skip balances Wise won't
+          // produce statements for (e.g. never-used currencies).
+          if (r.status === 501) return json(env, { error: r.error }, r.status)
+          continue
+        }
+        const txs = r.data.transactions ?? []
+        if (!txs.length) continue
+        const rate = await rateToEur(env, b.currency)
+        if (rate == null) continue
+        for (const tx of txs) {
+          if (tx.type !== 'DEBIT') continue
+          const day = String(tx.date ?? '').slice(0, 10)
+          if (!day) continue
+          const value = Math.abs(Number(tx.amount?.value ?? 0))
+          if (!Number.isFinite(value)) continue
+          byDay[day] = round2((byDay[day] ?? 0) + value * rate)
+        }
       }
       return json(env, { byDay })
     }
