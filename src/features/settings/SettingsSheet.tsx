@@ -4,7 +4,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getSetting, setSetting } from '@/store/settings'
+import {
+  getSetting,
+  setSetting,
+  getNtfyLeadMin,
+  setNtfyLeadMin,
+  NTFY_LEAD_MIN,
+  NTFY_LEAD_MAX,
+} from '@/store/settings'
 import { getProfileNumber, setProfileNumber } from '@/store/profile'
 import { importV1 } from '@/lib/importV1'
 import { exportBackup, mergeImport, importBackup } from '@/lib/exportData'
@@ -39,6 +46,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
   const [syncSecret, setSyncSecret] = useState('')
   const [pushOn, setPushOn] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
+  const [leadMin, setLeadMin] = useState('60')
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
   const seedRef = useRef<HTMLInputElement>(null)
@@ -136,6 +144,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
     setBudget(String(getProfileNumber('monthlyBudget') || 1700))
     setSyncUrl(getSetting('syncUrl'))
     setSyncSecret(getSetting('syncSecret'))
+    setLeadMin(String(getNtfyLeadMin()))
     isPushEnabled().then(setPushOn).catch(() => setPushOn(false))
     listSnapshots().then(setSnapshots).catch(() => setSnapshots([]))
   }, [open])
@@ -148,6 +157,10 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
     setSetting('wiseProxySecret', wiseSecret.trim())
     const b = Number(budget)
     if (Number.isFinite(b) && b > 0) setProfileNumber('monthlyBudget', b)
+    const lead = Number(leadMin)
+    if (Number.isFinite(lead) && lead >= NTFY_LEAD_MIN && lead <= NTFY_LEAD_MAX) {
+      setNtfyLeadMin(lead)
+    }
     const hadSync = getSetting('syncUrl').length > 0
     setSetting('syncUrl', syncUrl.trim())
     setSetting('syncSecret', syncSecret.trim())
@@ -286,6 +299,21 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
                 Notifications need the installed home-screen app (iOS 16.4+).
               </p>
             )}
+            <div className="space-y-1.5">
+              <Label htmlFor="set-lead">Event reminder (minutes before)</Label>
+              <Input
+                id="set-lead"
+                type="text"
+                inputMode="numeric"
+                value={leadMin}
+                onChange={(e) => setLeadMin(e.target.value)}
+                placeholder="60"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Calendar events with a time get an ntfy push this many minutes ahead. Sent by the
+                Worker, so it arrives with the app closed. All-day events are skipped.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-1.5 border-t border-border pt-4">

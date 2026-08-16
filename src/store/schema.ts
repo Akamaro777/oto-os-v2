@@ -543,6 +543,9 @@ export const tablesSchema: TablesSchema = {
 export const valuesSchema: ValuesSchema = {
   // Profile — targets & goal dates
   'profile.name': { type: 'string', default: 'Oto' },
+  /** IANA zone, rewritten from the device on every boot — the reminder cron in
+   *  workers/oto-sync reads it to turn an event's wall time into an instant. */
+  'profile.timezone': { type: 'string', default: '' },
   'profile.weight': { type: 'number', default: 74 },
   'profile.targetWeight': { type: 'number', default: 79 },
   'profile.bizTarget': { type: 'number', default: 4 },
@@ -616,4 +619,6 @@ export const valuesSchema: ValuesSchema = {
   /** Optional model-id overrides — bump models without redeploying. */
   'settings.modelSonnet': { type: 'string', default: '' },
   'settings.modelHaiku': { type: 'string', default: '' },
+  /** Minutes before an event that the ntfy reminder fires (1–1440). */
+  'settings.ntfyLeadMin': { type: 'number', default: 60 },
 }

@@ -18,14 +18,20 @@ tag = "v1"
 new_sqlite_classes = ["OtoSyncDO"]
 
 # 05:00 UTC = 07:00 CEST (morning briefing) · 19:30 UTC = 21:30 CEST (evening check-in)
+# */5 = the calendar-reminder sweep (see sendEventReminders in worker.js)
 [triggers]
-crons = ["0 5 * * *", "30 19 * * *"]
+crons = ["0 5 * * *", "30 19 * * *", "*/5 * * * *"]
 
 [vars]
 VAPID_SUBJECT = "mailto:ozolins.oto@gmail.com"
 ALLOWED_ORIGIN = "https://akamaro777.github.io"
+NTFY_SERVER = "https://ntfy.sh"
+# Fallback only — the app syncs profile.timezone from the phone on each boot.
+DEFAULT_TZ = "Europe/Riga"
 
 # Secrets (set via CLI, never commit values):
 #   npx wrangler secret put SYNC_SECRET
 #   npx wrangler secret put VAPID_PUBLIC_KEY
 #   npx wrangler secret put VAPID_PRIVATE_JWK
+#   npx wrangler secret put NTFY_TOPIC     # the ntfy.sh topic to publish to —
+#     a secret, not a var: knowing an ntfy topic name is enough to read it.

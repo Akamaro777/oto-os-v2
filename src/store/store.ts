@@ -19,6 +19,18 @@ export const store: MergeableStore = createMergeableStore()
 let bootPromise: Promise<void> | null = null
 
 /**
+ * Publish the device's IANA zone so the reminder cron can turn an event's wall
+ * time ("08:00") into a real instant. Written on every boot, so flying
+ * somewhere and opening the app is all it takes to re-aim the reminders.
+ */
+function recordTimezone(): void {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (tz && store.getValue('profile.timezone') !== tz) {
+    store.setValue('profile.timezone', tz)
+  }
+}
+
+/**
  * Load persisted data and begin auto-saving future changes.
  * Idempotent — safe under React StrictMode's double-invoke.
  */
@@ -46,6 +58,7 @@ export function initPersistence(): Promise<void> {
       })
       .then(() => persister.startAutoSave())
       .then(() => runMigrations())
+      .then(() => recordTimezone())
   }
   return bootPromise
 }

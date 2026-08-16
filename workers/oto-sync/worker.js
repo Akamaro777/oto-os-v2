@@ -11,11 +11,17 @@
  *   POST /push/subscribe    → { subscription } register a device
  *   POST /push/unsubscribe  → { endpoint } remove a device
  *
- * Cron (see wrangler.toml) sends payload-less pushes; the app's service
- * worker turns them into the morning-briefing / evening check-in notification.
+ * Cron (see wrangler.toml):
+ *   0 5 / 30 19    payload-less Web Push; the app's service worker turns it
+ *                  into the morning-briefing / evening check-in notification.
+ *   every 5 min    event reminders — reads the state snapshot, finds calendar
+ *                  events starting within the lead window and publishes them
+ *                  to ntfy. Web Push can't carry text without payload
+ *                  encryption, and ntfy delivers even with the app closed.
  *
  * Bindings: KV namespace `OTO`; Durable Object `OtoSyncDO`; secrets
- * SYNC_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_JWK; var VAPID_SUBJECT.
+ * SYNC_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_JWK, NTFY_TOPIC; vars
+ * VAPID_SUBJECT, NTFY_SERVER, DEFAULT_TZ.
  */
 import {
   WsServerDurableObject,
@@ -183,9 +189,166 @@ export default {
     return json({ error: 'not found' }, 404, origin)
   },
 
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(sendToAll(env))
+  async scheduled(event, env, ctx) {
+    // Reminders run on EVERY tick. They're idempotent (one KV `sent:` key per
+    // event), so the extra runs cost nothing — and routing them on
+    // `event.cron` string equality instead would silently switch them off if
+    // Cloudflare ever reformatted the pattern it reports.
+    ctx.waitUntil(sendEventReminders(env))
+    if (isBriefingTick(event.scheduledTime)) {
+      ctx.waitUntil(brief(env, event.scheduledTime))
+    }
   },
+}
+
+/** 05:00 and 19:30 UTC, matched on the clock rather than the cron string. */
+function isBriefingTick(scheduledTime) {
+  const d = new Date(scheduledTime ?? Date.now())
+  const h = d.getUTCHours()
+  const m = d.getUTCMinutes()
+  return (h === 5 && m === 0) || (h === 19 && m === 30)
+}
+
+/**
+ * At 05:00 and 19:30 both the daily cron and the 5-minute cron match, and
+ * Cloudflare invokes once per matching pattern — a stamp keeps the briefing
+ * from going out twice.
+ */
+async function brief(env, scheduledTime) {
+  const key = `briefed:${new Date(scheduledTime ?? Date.now()).toISOString().slice(0, 16)}`
+  if (await env.OTO.get(key)) return
+  await env.OTO.put(key, '1', { expirationTtl: 3600 })
+  await sendToAll(env)
+}
+
+/* ── Event reminders → ntfy ── */
+
+const DEFAULT_LEAD_MIN = 60
+const SENT_TTL_S = 7 * 24 * 3600
+
+/**
+ * Milliseconds that `tz` is ahead of UTC at instant `ts`. Derived by
+ * formatting the instant in that zone and reading the wall clock back, which
+ * is the only way to get a real IANA offset (DST included) without a library.
+ */
+function tzOffsetMs(ts, tz) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(new Date(ts))
+      .map((p) => [p.type, p.value]),
+  )
+  const wall = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  )
+  return wall - ts
+}
+
+/** "2026-08-17" + "08:00" as wall time in `tz` → UTC epoch ms. */
+function zonedToUtcMs(date, time, tz) {
+  const [y, mo, d] = date.split('-').map(Number)
+  const [h, mi] = time.split(':').map(Number)
+  const wall = Date.UTC(y, mo - 1, d, h, mi)
+  // Two passes: the first offset is read at the wrong instant near a DST
+  // jump, the second lands on the right side of it.
+  let ts = wall - tzOffsetMs(wall, tz)
+  ts = wall - tzOffsetMs(ts, tz)
+  return ts
+}
+
+function leadMinutes(values) {
+  const n = Number(values['settings.ntfyLeadMin'])
+  return Number.isFinite(n) && n >= 1 && n <= 1440 ? Math.round(n) : DEFAULT_LEAD_MIN
+}
+
+async function sendEventReminders(env) {
+  if (!env.NTFY_TOPIC) return
+  const raw = await env.OTO.get('state')
+  if (!raw) return
+  let state
+  try {
+    state = JSON.parse(raw)
+  } catch {
+    return
+  }
+  const events = state?.tables?.events
+  if (!events || typeof events !== 'object') return
+
+  const values = state.values ?? {}
+  // The phone writes its own IANA zone on every boot, so reminders follow him
+  // when he travels instead of firing on a hard-coded home offset.
+  const tz = typeof values['profile.timezone'] === 'string' && values['profile.timezone']
+    ? values['profile.timezone']
+    : env.DEFAULT_TZ || 'Europe/Riga'
+  const lead = leadMinutes(values) * 60_000
+  const now = Date.now()
+
+  for (const [id, ev] of Object.entries(events)) {
+    const date = String(ev?.date ?? '')
+    const time = String(ev?.time ?? '')
+    // All-day entries carry no time — there is no hour to count back from.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{1,2}:\d{2}$/.test(time)) continue
+
+    let startMs
+    try {
+      startMs = zonedToUtcMs(date, time, tz)
+    } catch {
+      continue
+    }
+    if (!Number.isFinite(startMs)) continue
+
+    // Fire once the window opens and the event hasn't started. Stated this way
+    // a skipped tick still sends (late but useful) rather than being missed.
+    if (now < startMs - lead || now >= startMs) continue
+
+    // Keyed on the time too, so moving an event re-arms its reminder.
+    const key = `sent:${id}:${date}T${time}`
+    if (await env.OTO.get(key)) continue
+    if (await publishNtfy(env, ev, startMs, now)) {
+      await env.OTO.put(key, '1', { expirationTtl: SENT_TTL_S })
+    }
+  }
+}
+
+async function publishNtfy(env, ev, startMs, now) {
+  const server = (env.NTFY_SERVER || 'https://ntfy.sh').replace(/\/$/, '')
+  const mins = Math.max(1, Math.round((startMs - now) / 60_000))
+  const body = [`in ${mins} min · ${String(ev.time)}`]
+  if (ev.category) body.push(String(ev.category))
+  if (ev.notes) body.push(String(ev.notes).slice(0, 300))
+
+  try {
+    // JSON publish, not the header API: ntfy headers are latin-1, which would
+    // mangle any non-ASCII in a title.
+    const res = await fetch(server, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        topic: env.NTFY_TOPIC,
+        title: String(ev.title || 'Event').slice(0, 120),
+        message: body.join('\n'),
+        tags: ['calendar'],
+        priority: 4,
+        click: `${env.ALLOWED_ORIGIN || 'https://akamaro777.github.io'}/oto-os-v2/`,
+      }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
 }
 
 async function sendToAll(env) {
