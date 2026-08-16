@@ -33,19 +33,17 @@ export function useSetting(key: SettingKey): string {
  * helpers above stringify. The Worker's reminder cron reads the same synced
  * value, so the bounds here must match leadMinutes() in workers/oto-sync. */
 
-export const NTFY_LEAD_DEFAULT = 60
-export const NTFY_LEAD_MIN = 1
-export const NTFY_LEAD_MAX = 1440
+export const LEAD_DEFAULT = 60
+export const LEAD_MIN = 1
+export const LEAD_MAX = 1440
 
-export function getNtfyLeadMin(): number {
-  const n = Number(store.getValue('settings.ntfyLeadMin'))
-  return Number.isFinite(n) && n >= NTFY_LEAD_MIN && n <= NTFY_LEAD_MAX
-    ? Math.round(n)
-    : NTFY_LEAD_DEFAULT
+export function getReminderLeadMin(): number {
+  const n = Number(store.getValue('settings.reminderLeadMin'))
+  return Number.isFinite(n) && n >= LEAD_MIN && n <= LEAD_MAX ? Math.round(n) : LEAD_DEFAULT
 }
 
-export function setNtfyLeadMin(mins: number): void {
+export function setReminderLeadMin(mins: number): void {
   const n = Math.round(mins)
   if (!Number.isFinite(n)) return
-  store.setValue('settings.ntfyLeadMin', Math.min(NTFY_LEAD_MAX, Math.max(NTFY_LEAD_MIN, n)))
+  store.setValue('settings.reminderLeadMin', Math.min(LEAD_MAX, Math.max(LEAD_MIN, n)))
 }

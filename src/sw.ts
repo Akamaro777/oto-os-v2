@@ -24,6 +24,25 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
 
+interface PushPayload {
+  kind?: string
+  title?: string
+  body?: string
+  tag?: string
+}
+
+/** Event reminders arrive as JSON; older/bare pushes are plain text or nothing. */
+function parsePayload(raw: string | undefined): PushPayload | undefined {
+  if (!raw) return undefined
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && 'title' in parsed) return parsed as PushPayload
+  } catch {
+    /* not JSON — fall through to the plain-text shape */
+  }
+  return { body: raw }
+}
+
 function notificationForNow(payload: string | undefined, gmatLine: string): { title: string; body: string } {
   if (payload) return { title: 'oto.os', body: payload }
   const h = new Date().getHours()
@@ -82,13 +101,26 @@ self.addEventListener('push', (event) => {
   }
   event.waitUntil(
     (async () => {
-      const gmatLine = await gmatCountdownLine()
-      const { title, body } = notificationForNow(payload, gmatLine)
+      const parsed = parsePayload(payload)
+      // A structured payload carries its own text (event reminders); anything
+      // else is a bare wake-up and the wording is chosen here.
+      let title: string
+      let body: string
+      let tag = 'oto-os-checkin'
+      if (parsed?.title) {
+        title = parsed.title
+        body = parsed.body ?? ''
+        // Per-event tag so two reminders stack instead of replacing each other.
+        if (parsed.tag) tag = parsed.tag
+      } else {
+        const gmatLine = await gmatCountdownLine()
+        ;({ title, body } = notificationForNow(parsed?.body, gmatLine))
+      }
       await self.registration.showNotification(title, {
         body,
         icon: 'pwa-192.png',
         badge: 'pwa-192.png',
-        tag: 'oto-os-checkin',
+        tag,
       })
     })(),
   )

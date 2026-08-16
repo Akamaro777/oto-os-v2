@@ -619,6 +619,6 @@ export const valuesSchema: ValuesSchema = {
   /** Optional model-id overrides — bump models without redeploying. */
   'settings.modelSonnet': { type: 'string', default: '' },
   'settings.modelHaiku': { type: 'string', default: '' },
-  /** Minutes before an event that the ntfy reminder fires (1–1440). */
-  'settings.ntfyLeadMin': { type: 'number', default: 60 },
+  /** Minutes before an event that its reminder push fires (1–1440). */
+  'settings.reminderLeadMin': { type: 'number', default: 60 },
 }

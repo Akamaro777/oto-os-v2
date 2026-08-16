@@ -25,7 +25,6 @@ crons = ["0 5 * * *", "30 19 * * *", "*/5 * * * *"]
 [vars]
 VAPID_SUBJECT = "mailto:ozolins.oto@gmail.com"
 ALLOWED_ORIGIN = "https://akamaro777.github.io"
-NTFY_SERVER = "https://ntfy.sh"
 # Fallback only — the app syncs profile.timezone from the phone on each boot.
 DEFAULT_TZ = "Europe/Riga"
 
@@ -33,5 +32,3 @@ DEFAULT_TZ = "Europe/Riga"
 #   npx wrangler secret put SYNC_SECRET
 #   npx wrangler secret put VAPID_PUBLIC_KEY
 #   npx wrangler secret put VAPID_PRIVATE_JWK
-#   npx wrangler secret put NTFY_TOPIC     # the ntfy.sh topic to publish to —
-#     a secret, not a var: knowing an ntfy topic name is enough to read it.

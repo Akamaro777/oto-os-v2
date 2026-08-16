@@ -15,13 +15,12 @@
  *   0 5 / 30 19    payload-less Web Push; the app's service worker turns it
  *                  into the morning-briefing / evening check-in notification.
  *   every 5 min    event reminders — reads the state snapshot, finds calendar
- *                  events starting within the lead window and publishes them
- *                  to ntfy. Web Push can't carry text without payload
- *                  encryption, and ntfy delivers even with the app closed.
+ *                  events starting within the lead window, and pushes each one
+ *                  with an encrypted payload carrying its title and time.
  *
  * Bindings: KV namespace `OTO`; Durable Object `OtoSyncDO`; secrets
- * SYNC_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_JWK, NTFY_TOPIC; vars
- * VAPID_SUBJECT, NTFY_SERVER, DEFAULT_TZ.
+ * SYNC_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_JWK; vars VAPID_SUBJECT,
+ * DEFAULT_TZ.
  */
 import {
   WsServerDurableObject,
@@ -168,6 +167,13 @@ export default {
       return json({ ok: true }, 200, origin)
     }
 
+    // Run the reminder sweep on demand and report what it decided. Same code
+    // path as the cron, so "did my reminder work?" is answerable without
+    // waiting for a tick.
+    if (path === '/reminders/run' && request.method === 'GET') {
+      return json(await sendEventReminders(env, url.searchParams.get('dry') === '1'), 200, origin)
+    }
+
     if (path === '/push/vapid' && request.method === 'GET') {
       return json({ publicKey: env.VAPID_PUBLIC_KEY ?? '' }, 200, origin)
     }
@@ -194,6 +200,8 @@ export default {
     // event), so the extra runs cost nothing — and routing them on
     // `event.cron` string equality instead would silently switch them off if
     // Cloudflare ever reformatted the pattern it reports.
+    // Heartbeat: proves the schedule is alive without needing a device.
+    ctx.waitUntil(env.OTO.put('cron-last', new Date().toISOString()))
     ctx.waitUntil(sendEventReminders(env))
     if (isBriefingTick(event.scheduledTime)) {
       ctx.waitUntil(brief(env, event.scheduledTime))
@@ -221,7 +229,7 @@ async function brief(env, scheduledTime) {
   await sendToAll(env)
 }
 
-/* ── Event reminders → ntfy ── */
+/* ── Event reminders ── */
 
 const DEFAULT_LEAD_MIN = 60
 const SENT_TTL_S = 7 * 24 * 3600
@@ -270,22 +278,31 @@ function zonedToUtcMs(date, time, tz) {
 }
 
 function leadMinutes(values) {
-  const n = Number(values['settings.ntfyLeadMin'])
+  // ntfyLeadMin is the pre-Web-Push name; read it so an early save still counts.
+  const n = Number(values['settings.reminderLeadMin'] ?? values['settings.ntfyLeadMin'])
   return Number.isFinite(n) && n >= 1 && n <= 1440 ? Math.round(n) : DEFAULT_LEAD_MIN
 }
 
-async function sendEventReminders(env) {
-  if (!env.NTFY_TOPIC) return
+/** Returns a summary so /reminders/run can report what it decided. */
+async function sendEventReminders(env, dry = false) {
+  const out = {
+    ok: true, tz: null, leadMin: null, scanned: 0,
+    due: [], sent: [], failed: [], skipped: null,
+    devices: (await env.OTO.list({ prefix: 'sub:' })).keys.length,
+    cronLast: await env.OTO.get('cron-last'),
+  }
   const raw = await env.OTO.get('state')
-  if (!raw) return
+  if (!raw) return { ...out, ok: false, skipped: 'no state in KV' }
   let state
   try {
     state = JSON.parse(raw)
   } catch {
-    return
+    return { ...out, ok: false, skipped: 'state is not valid JSON' }
   }
   const events = state?.tables?.events
-  if (!events || typeof events !== 'object') return
+  if (!events || typeof events !== 'object') {
+    return { ...out, ok: false, skipped: 'no events table' }
+  }
 
   const values = state.values ?? {}
   // The phone writes its own IANA zone on every boot, so reminders follow him
@@ -293,10 +310,14 @@ async function sendEventReminders(env) {
   const tz = typeof values['profile.timezone'] === 'string' && values['profile.timezone']
     ? values['profile.timezone']
     : env.DEFAULT_TZ || 'Europe/Riga'
-  const lead = leadMinutes(values) * 60_000
+  const leadMin = leadMinutes(values)
+  const lead = leadMin * 60_000
   const now = Date.now()
+  out.tz = tz
+  out.leadMin = leadMin
 
   for (const [id, ev] of Object.entries(events)) {
+    out.scanned++
     const date = String(ev?.date ?? '')
     const time = String(ev?.time ?? '')
     // All-day entries carry no time — there is no hour to count back from.
@@ -313,60 +334,75 @@ async function sendEventReminders(env) {
     // Fire once the window opens and the event hasn't started. Stated this way
     // a skipped tick still sends (late but useful) rather than being missed.
     if (now < startMs - lead || now >= startMs) continue
+    out.due.push({ id, title: String(ev.title ?? ''), startsInMin: Math.round((startMs - now) / 60_000) })
 
     // Keyed on the time too, so moving an event re-arms its reminder.
     const key = `sent:${id}:${date}T${time}`
     if (await env.OTO.get(key)) continue
-    if (await publishNtfy(env, ev, startMs, now)) {
+    if (dry) continue
+    const r = await pushToDevices(env, reminderPayload(ev, startMs, now))
+    if (r.delivered > 0) {
       await env.OTO.put(key, '1', { expirationTtl: SENT_TTL_S })
+      out.sent.push(id)
+    } else {
+      // No stamp on failure, so the next tick retries.
+      out.failed.push({ id, ...r })
     }
   }
+  return out
 }
 
-async function publishNtfy(env, ev, startMs, now) {
-  const server = (env.NTFY_SERVER || 'https://ntfy.sh').replace(/\/$/, '')
+/** The reminder notification for one event, as the service worker renders it. */
+function reminderPayload(ev, startMs, now) {
   const mins = Math.max(1, Math.round((startMs - now) / 60_000))
-  const body = [`in ${mins} min · ${String(ev.time)}`]
-  if (ev.category) body.push(String(ev.category))
-  if (ev.notes) body.push(String(ev.notes).slice(0, 300))
-
-  try {
-    // JSON publish, not the header API: ntfy headers are latin-1, which would
-    // mangle any non-ASCII in a title.
-    const res = await fetch(server, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        topic: env.NTFY_TOPIC,
-        title: String(ev.title || 'Event').slice(0, 120),
-        message: body.join('\n'),
-        tags: ['calendar'],
-        priority: 4,
-        click: `${env.ALLOWED_ORIGIN || 'https://akamaro777.github.io'}/oto-os-v2/`,
-      }),
-    })
-    return res.ok
-  } catch {
-    return false
+  const parts = [`in ${mins} min · ${String(ev.time)}`]
+  if (ev.category) parts.push(String(ev.category))
+  if (ev.notes) parts.push(String(ev.notes).slice(0, 200))
+  return {
+    kind: 'event',
+    title: String(ev.title || 'Event').slice(0, 120),
+    body: parts.join(' · '),
+    // Per-event tag: two reminders must stack, not replace each other.
+    tag: `oto-os-event-${String(ev.date)}-${String(ev.time)}`,
   }
 }
 
-async function sendToAll(env) {
+/**
+ * Deliver to every registered device. Returns how many accepted it; drops
+ * subscriptions the push service reports as gone.
+ */
+async function pushToDevices(env, payload) {
   const list = await env.OTO.list({ prefix: 'sub:' })
+  let delivered = 0
+  let devices = 0
+  let lastStatus = null
   for (const { name } of list.keys) {
     const raw = await env.OTO.get(name)
     if (!raw) continue
-    const sub = JSON.parse(raw)
+    let sub
     try {
-      const status = await sendPush(sub.endpoint, env)
+      sub = JSON.parse(raw)
+    } catch {
+      continue
+    }
+    devices++
+    try {
+      const status = await sendPush(sub, env, payload)
+      lastStatus = status
       if (status === 404 || status === 410) await env.OTO.delete(name) // expired device
+      else if (status >= 200 && status < 300) delivered++
     } catch {
       /* keep going for other devices */
     }
   }
+  return { devices, delivered, lastStatus }
 }
 
-/* ── Payload-less Web Push with VAPID (ES256, WebCrypto) ── */
+async function sendToAll(env) {
+  return pushToDevices(env, null)
+}
+
+/* ── Web Push with VAPID (ES256) and an aes128gcm payload (RFC 8291) ── */
 
 const b64url = (buf) =>
   btoa(String.fromCharCode(...new Uint8Array(buf)))
@@ -374,7 +410,83 @@ const b64url = (buf) =>
     .replace(/\//g, '_')
     .replace(/=+$/, '')
 
-async function sendPush(endpoint, env) {
+function b64urlDecode(s) {
+  const b64 = String(s).replace(/-/g, '+').replace(/_/g, '/')
+  const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0))
+}
+
+function concatBytes(...parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
+  let at = 0
+  for (const p of parts) {
+    out.set(p, at)
+    at += p.length
+  }
+  return out
+}
+
+async function hkdf(salt, ikm, info, bytes) {
+  const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits'])
+  return new Uint8Array(
+    await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, key, bytes * 8),
+  )
+}
+
+/**
+ * RFC 8291 message encryption. The push service only relays ciphertext — it
+ * can't read the event title, and neither can Cloudflare; only the subscribed
+ * device holds the private half.
+ */
+async function encryptPayload(plaintext, p256dh, auth) {
+  const enc = new TextEncoder()
+  const uaPublic = b64urlDecode(p256dh) // device public key, uncompressed P-256 point
+  const authSecret = b64urlDecode(auth)
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+
+  const asKeys = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, [
+    'deriveBits',
+  ])
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey('raw', asKeys.publicKey))
+  const uaKey = await crypto.subtle.importKey(
+    'raw',
+    uaPublic,
+    { name: 'ECDH', namedCurve: 'P-256' },
+    false,
+    [],
+  )
+  const shared = new Uint8Array(
+    await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, asKeys.privateKey, 256),
+  )
+
+  const prk = await hkdf(
+    authSecret,
+    shared,
+    concatBytes(enc.encode('WebPush: info\0'), uaPublic, asPublic),
+    32,
+  )
+  const cek = await hkdf(salt, prk, enc.encode('Content-Encoding: aes128gcm\0'), 16)
+  const nonce = await hkdf(salt, prk, enc.encode('Content-Encoding: nonce\0'), 12)
+
+  const aesKey = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt'])
+  // 0x02 is the padding delimiter marking this as the final record.
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: nonce },
+      aesKey,
+      concatBytes(enc.encode(plaintext), new Uint8Array([2])),
+    ),
+  )
+
+  // Header: salt(16) | record size(4) | key id length(1) | key id (our public key)
+  const rs = new Uint8Array(4)
+  new DataView(rs.buffer).setUint32(0, 4096)
+  return concatBytes(salt, rs, new Uint8Array([asPublic.length]), asPublic, ciphertext)
+}
+
+/** `payload` null → a bare wake-up (the SW writes its own check-in text). */
+async function sendPush(sub, env, payload = null) {
+  const endpoint = typeof sub === 'string' ? sub : sub.endpoint
   const { origin } = new URL(endpoint)
   const jwk = JSON.parse(env.VAPID_PRIVATE_JWK)
   const key = await crypto.subtle.importKey(
@@ -402,13 +514,18 @@ async function sendPush(endpoint, env) {
   )
   const jwt = `${unsigned}.${b64url(sig)}`
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      TTL: '86400',
-      Urgency: 'normal',
-      Authorization: `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`,
-    },
-  })
+  const headers = {
+    TTL: '86400',
+    Urgency: 'normal',
+    Authorization: `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`,
+  }
+  let body
+  if (payload && sub?.keys?.p256dh && sub?.keys?.auth) {
+    body = await encryptPayload(JSON.stringify(payload), sub.keys.p256dh, sub.keys.auth)
+    headers['Content-Encoding'] = 'aes128gcm'
+    headers['Content-Type'] = 'application/octet-stream'
+  }
+
+  const res = await fetch(endpoint, { method: 'POST', headers, body })
   return res.status
 }

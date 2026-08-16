@@ -7,10 +7,10 @@ import { Label } from '@/components/ui/label'
 import {
   getSetting,
   setSetting,
-  getNtfyLeadMin,
-  setNtfyLeadMin,
-  NTFY_LEAD_MIN,
-  NTFY_LEAD_MAX,
+  getReminderLeadMin,
+  setReminderLeadMin,
+  LEAD_MIN,
+  LEAD_MAX,
 } from '@/store/settings'
 import { getProfileNumber, setProfileNumber } from '@/store/profile'
 import { importV1 } from '@/lib/importV1'
@@ -144,7 +144,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
     setBudget(String(getProfileNumber('monthlyBudget') || 1700))
     setSyncUrl(getSetting('syncUrl'))
     setSyncSecret(getSetting('syncSecret'))
-    setLeadMin(String(getNtfyLeadMin()))
+    setLeadMin(String(getReminderLeadMin()))
     isPushEnabled().then(setPushOn).catch(() => setPushOn(false))
     listSnapshots().then(setSnapshots).catch(() => setSnapshots([]))
   }, [open])
@@ -158,8 +158,8 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
     const b = Number(budget)
     if (Number.isFinite(b) && b > 0) setProfileNumber('monthlyBudget', b)
     const lead = Number(leadMin)
-    if (Number.isFinite(lead) && lead >= NTFY_LEAD_MIN && lead <= NTFY_LEAD_MAX) {
-      setNtfyLeadMin(lead)
+    if (Number.isFinite(lead) && lead >= LEAD_MIN && lead <= LEAD_MAX) {
+      setReminderLeadMin(lead)
     }
     const hadSync = getSetting('syncUrl').length > 0
     setSetting('syncUrl', syncUrl.trim())
@@ -310,8 +310,9 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
                 placeholder="60"
               />
               <p className="text-[11px] text-muted-foreground">
-                Calendar events with a time get an ntfy push this many minutes ahead. Sent by the
-                Worker, so it arrives with the app closed. All-day events are skipped.
+                Calendar events with a time notify you this many minutes ahead. Sent by the
+                Worker, so it arrives with the app closed. All-day events are skipped, and
+                notifications must be enabled above.
               </p>
             </div>
           </div>
