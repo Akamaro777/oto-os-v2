@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { PILLAR_META } from '@/lib/pillars'
+import { cn } from '@/lib/utils'
 import { todayISO, daysBetween } from '@/lib/dates'
 import { fileToJpegDataURL } from '@/lib/images'
 import { extractGmatPhoto, applyGmatExtract, type GmatPhotoExtract } from '@/lib/aiCapture'
@@ -141,22 +142,69 @@ export function ExamProfileCard() {
   )
 }
 
+const SECTION_FILTERS = ['all', 'quant', 'verbal', 'di'] as const
+type SectionFilter = (typeof SECTION_FILTERS)[number]
+
+const FILTER_LABEL: Record<SectionFilter, string> = {
+  all: 'All',
+  quant: 'Quant',
+  verbal: 'Verbal',
+  di: 'DI',
+}
+
+function isSectionFilter(s: string | undefined): s is SectionFilter {
+  return s != null && (SECTION_FILTERS as readonly string[]).includes(s)
+}
+
 /** Error-log aggregation: which topics are bleeding points and why. */
 export function WeakSpotsCard() {
   const errors = useGmatErrors()
-  const spots = useMemo(() => aggregateWeakSpots(errors), [errors])
+
+  // Open on the section he logged errors in most recently — that's what he's
+  // working on now. Unfiltered, one big verbal round buries every quant topic
+  // under it for weeks, which is exactly when quant is the live problem.
+  const latest = errors[0]?.section
+  const [picked, setPicked] = useState<SectionFilter | null>(null)
+  const section = picked ?? (isSectionFilter(latest) ? latest : 'all')
+
+  const shown = useMemo(
+    () => (section === 'all' ? errors : errors.filter((e) => e.section === section)),
+    [errors, section],
+  )
+  const spots = useMemo(() => aggregateWeakSpots(shown), [shown])
   const max = spots[0]?.total ?? 1
 
   return (
     <TrackerCard
       title="Weak spots"
       action={
-        <span className="font-mono text-[11px] text-muted-foreground">{errors.length} errors logged</span>
+        <span className="font-mono text-[11px] text-muted-foreground">{shown.length} errors logged</span>
       }
     >
+      <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto">
+        {SECTION_FILTERS.map((f) => {
+          const active = f === section
+          return (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setPicked(f)}
+              className={cn(
+                'pressable shrink-0 rounded-full px-3 py-1 font-mono text-[11px] transition-colors',
+                active ? 'text-background' : 'bg-secondary text-muted-foreground hover:text-foreground',
+              )}
+              style={active ? { backgroundColor: CV } : undefined}
+            >
+              {FILTER_LABEL[f]}
+            </button>
+          )
+        })}
+      </div>
+
       {spots.length === 0 ? (
         <p className="py-2 text-center text-xs text-muted-foreground">
-          No errors logged yet — snap a photo of a practice set or wrong-question list.
+          No {section === 'all' ? '' : `${FILTER_LABEL[section].toLowerCase()} `}errors logged yet —
+          snap a photo of a practice set or wrong-question list.
         </p>
       ) : (
         <ul className="space-y-2.5">
@@ -171,7 +219,9 @@ export function WeakSpotsCard() {
                 <div className="mb-1 flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate text-sm capitalize">{s.topic}</span>
                   <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                    {SECTION_LABEL[s.section] ?? s.section} · {s.total}
+                    {/* The section is redundant once it's the only one shown. */}
+                    {section === 'all' ? `${SECTION_LABEL[s.section] ?? s.section} · ` : ''}
+                    {s.total}
                     {reasons ? ` (${reasons})` : ''}
                   </span>
                 </div>
