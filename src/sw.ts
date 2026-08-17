@@ -75,10 +75,17 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    (async () => {
+      // Opening one reminder clears the rest, so a stale tray never becomes a
+      // count on the icon. clearAppBadge is best-effort: not every engine
+      // exposes the Badging API to a worker.
+      for (const n of await self.registration.getNotifications()) n.close()
+      const nav = self.navigator as WorkerNavigator & { clearAppBadge?: () => Promise<void> }
+      await nav.clearAppBadge?.().catch(() => {})
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       const existing = clients[0]
       if (existing) return existing.focus()
       return self.clients.openWindow(self.registration.scope)
-    }),
+    })(),
   )
 })

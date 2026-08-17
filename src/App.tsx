@@ -49,8 +49,15 @@ export default function App() {
         if (total != null) toast.success(`Portfolio synced: €${Math.round(total).toLocaleString('en-US')}`)
       })
     })
-    // Drop the icon badge an older build left behind (it read as unread mail).
+    // No number ever sits on the home-screen icon: clear it on boot (an older
+    // build's countdown badge survives updates) and again on every foreground,
+    // so anything that manages to set one is wiped the moment he looks.
     clearIconBadge()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') clearIconBadge()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
   return (
