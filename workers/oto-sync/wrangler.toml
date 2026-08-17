@@ -17,10 +17,11 @@ class_name = "OtoSyncDO"
 tag = "v1"
 new_sqlite_classes = ["OtoSyncDO"]
 
-# 05:00 UTC = 07:00 CEST (morning briefing) · 19:30 UTC = 21:30 CEST (evening check-in)
-# */5 = the calendar-reminder sweep (see sendEventReminders in worker.js)
+# The calendar-reminder sweep is the only schedule (see sendEventReminders in
+# worker.js). The old daily briefing/check-in crons were removed on 2026-08-17:
+# Oto wants notifications ONLY for an event starting within his lead window.
 [triggers]
-crons = ["0 5 * * *", "30 19 * * *", "*/5 * * * *"]
+crons = ["*/5 * * * *"]
 
 [vars]
 VAPID_SUBJECT = "mailto:ozolins.oto@gmail.com"

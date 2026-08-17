@@ -12,11 +12,11 @@
  *   POST /push/unsubscribe  → { endpoint } remove a device
  *
  * Cron (see wrangler.toml):
- *   0 5 / 30 19    payload-less Web Push; the app's service worker turns it
- *                  into the morning-briefing / evening check-in notification.
- *   every 5 min    event reminders — reads the state snapshot, finds calendar
- *                  events starting within the lead window, and pushes each one
- *                  with an encrypted payload carrying its title and time.
+ *   every 5 min    event reminders — the ONLY notification this Worker sends.
+ *                  Reads the state snapshot, finds calendar events starting
+ *                  within the lead window, and pushes each one with an
+ *                  encrypted payload carrying its title and time. Oto asked
+ *                  for nothing else: no briefings, no check-ins, no nudges.
  *
  * Bindings: KV namespace `OTO`; Durable Object `OtoSyncDO`; secrets
  * SYNC_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_JWK; vars VAPID_SUBJECT,
@@ -195,38 +195,13 @@ export default {
     return json({ error: 'not found' }, 404, origin)
   },
 
-  async scheduled(event, env, ctx) {
-    // Reminders run on EVERY tick. They're idempotent (one KV `sent:` key per
-    // event), so the extra runs cost nothing — and routing them on
-    // `event.cron` string equality instead would silently switch them off if
-    // Cloudflare ever reformatted the pattern it reports.
+  async scheduled(_event, env, ctx) {
     // Heartbeat: proves the schedule is alive without needing a device.
     ctx.waitUntil(env.OTO.put('cron-last', new Date().toISOString()))
+    // Reminders are idempotent (one KV `sent:` key per event), so a tick that
+    // overlaps another costs nothing.
     ctx.waitUntil(sendEventReminders(env))
-    if (isBriefingTick(event.scheduledTime)) {
-      ctx.waitUntil(brief(env, event.scheduledTime))
-    }
   },
-}
-
-/** 05:00 and 19:30 UTC, matched on the clock rather than the cron string. */
-function isBriefingTick(scheduledTime) {
-  const d = new Date(scheduledTime ?? Date.now())
-  const h = d.getUTCHours()
-  const m = d.getUTCMinutes()
-  return (h === 5 && m === 0) || (h === 19 && m === 30)
-}
-
-/**
- * At 05:00 and 19:30 both the daily cron and the 5-minute cron match, and
- * Cloudflare invokes once per matching pattern — a stamp keeps the briefing
- * from going out twice.
- */
-async function brief(env, scheduledTime) {
-  const key = `briefed:${new Date(scheduledTime ?? Date.now()).toISOString().slice(0, 16)}`
-  if (await env.OTO.get(key)) return
-  await env.OTO.put(key, '1', { expirationTtl: 3600 })
-  await sendToAll(env)
 }
 
 /* ── Event reminders ── */
@@ -398,10 +373,6 @@ async function pushToDevices(env, payload) {
   return { devices, delivered, lastStatus }
 }
 
-async function sendToAll(env) {
-  return pushToDevices(env, null)
-}
-
 /* ── Web Push with VAPID (ES256) and an aes128gcm payload (RFC 8291) ── */
 
 const b64url = (buf) =>
@@ -484,9 +455,11 @@ async function encryptPayload(plaintext, p256dh, auth) {
   return concatBytes(salt, rs, new Uint8Array([asPublic.length]), asPublic, ciphertext)
 }
 
-/** `payload` null → a bare wake-up (the SW writes its own check-in text). */
-async function sendPush(sub, env, payload = null) {
-  const endpoint = typeof sub === 'string' ? sub : sub.endpoint
+async function sendPush(sub, env, payload) {
+  // Every push carries an encrypted reminder. A subscription without keys
+  // could only produce a blank notification, so don't send it one.
+  if (!sub?.keys?.p256dh || !sub?.keys?.auth) return 0
+  const endpoint = sub.endpoint
   const { origin } = new URL(endpoint)
   const jwk = JSON.parse(env.VAPID_PRIVATE_JWK)
   const key = await crypto.subtle.importKey(
@@ -519,12 +492,9 @@ async function sendPush(sub, env, payload = null) {
     Urgency: 'normal',
     Authorization: `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`,
   }
-  let body
-  if (payload && sub?.keys?.p256dh && sub?.keys?.auth) {
-    body = await encryptPayload(JSON.stringify(payload), sub.keys.p256dh, sub.keys.auth)
-    headers['Content-Encoding'] = 'aes128gcm'
-    headers['Content-Type'] = 'application/octet-stream'
-  }
+  const body = await encryptPayload(JSON.stringify(payload), sub.keys.p256dh, sub.keys.auth)
+  headers['Content-Encoding'] = 'aes128gcm'
+  headers['Content-Type'] = 'application/octet-stream'
 
   const res = await fetch(endpoint, { method: 'POST', headers, body })
   return res.status

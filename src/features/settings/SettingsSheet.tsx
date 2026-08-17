@@ -110,7 +110,7 @@ export function SettingsSheet({ open, onOpenChange }: SettingsSheetProps) {
       } else {
         await enablePush()
         setPushOn(true)
-        toast.success('Notifications on — morning 7:00, check-in 21:30')
+        toast.success('Notifications on — calendar events only')
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Notification setup failed')

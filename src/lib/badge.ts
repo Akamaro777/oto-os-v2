@@ -1,51 +1,16 @@
 /**
- * GMAT countdown on the home-screen icon (App Badging API — iOS 16.4+ for
- * installed PWAs, plus desktop Chrome), and a tiny IndexedDB side-channel so
- * the service worker's push notifications can carry the same countdown (the
- * SW can't read the main store once it lives in localStorage).
+ * Home-screen icon badge. The icon used to carry the days-to-GMAT countdown,
+ * but iOS renders any badge as the same red bubble as unread notifications —
+ * "44 days left" reads as "44 unread". Nothing sets a badge now; this clears
+ * whatever an older build left on the icon (a badge survives updates until it
+ * is explicitly cleared) and tidies away the side-channel DB that fed it.
  */
-import { getProfileString } from '@/store/profile'
-import { todayISO, daysBetween } from './dates'
-
-const META_DB = 'oto-sw-meta'
-
-export function updateGmatBadge(): void {
-  const targetDate = getProfileString('gmatTargetDate')
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) return
-  const daysLeft = daysBetween(todayISO(), targetDate)
-
-  const nav = navigator as Navigator & {
-    setAppBadge?: (n?: number) => Promise<void>
-    clearAppBadge?: () => Promise<void>
+export function clearIconBadge(): void {
+  const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> }
+  nav.clearAppBadge?.().catch(() => {})
+  try {
+    indexedDB.deleteDatabase('oto-sw-meta')
+  } catch {
+    /* nothing to clean up */
   }
-  if (daysLeft > 0 && daysLeft <= 99) {
-    nav.setAppBadge?.(daysLeft).catch(() => {})
-  } else {
-    nav.clearAppBadge?.().catch(() => {})
-  }
-
-  writeSwMeta({ gmatTargetDate: targetDate }).catch(() => {})
-}
-
-function writeSwMeta(meta: Record<string, string>): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const open = indexedDB.open(META_DB, 1)
-    open.onupgradeneeded = () => {
-      if (!open.result.objectStoreNames.contains('kv')) open.result.createObjectStore('kv')
-    }
-    open.onerror = () => reject(open.error)
-    open.onsuccess = () => {
-      const db = open.result
-      const tx = db.transaction('kv', 'readwrite')
-      tx.objectStore('kv').put(meta, 'meta')
-      tx.oncomplete = () => {
-        db.close()
-        resolve()
-      }
-      tx.onerror = () => {
-        db.close()
-        reject(tx.error)
-      }
-    }
-  })
 }

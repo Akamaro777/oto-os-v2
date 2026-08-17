@@ -1,8 +1,10 @@
 /// <reference lib="webworker" />
 /**
  * Custom service worker: precaching (via vite-plugin-pwa injectManifest)
- * plus Web Push. Pushes are payload-less (sent by the sync Worker's cron);
- * the notification text is chosen here from the local time of day.
+ * plus Web Push. The only push the sync Worker sends is a calendar-event
+ * reminder, which carries its own encrypted title/body; a push arriving
+ * without one is a leftover and gets the quietest notification that still
+ * satisfies the platform's "must show something" rule.
  */
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 
@@ -31,65 +33,16 @@ interface PushPayload {
   tag?: string
 }
 
-/** Event reminders arrive as JSON; older/bare pushes are plain text or nothing. */
+/** Reminders arrive as JSON; anything else is a stray push we mostly ignore. */
 function parsePayload(raw: string | undefined): PushPayload | undefined {
   if (!raw) return undefined
   try {
     const parsed: unknown = JSON.parse(raw)
     if (parsed && typeof parsed === 'object' && 'title' in parsed) return parsed as PushPayload
   } catch {
-    /* not JSON — fall through to the plain-text shape */
+    /* not JSON */
   }
   return { body: raw }
-}
-
-function notificationForNow(payload: string | undefined, gmatLine: string): { title: string; body: string } {
-  if (payload) return { title: 'oto.os', body: payload }
-  const h = new Date().getHours()
-  if (h < 12)
-    return {
-      title: gmatLine ? `Plan your day — ${gmatLine}` : 'Plan your day',
-      body: 'Open oto.os — set your Top 3 and your first block.',
-    }
-  if (h >= 17)
-    return {
-      title: 'Close your rings',
-      body: `30-second check-in: log the day, rate it, set tomorrow’s #1.${gmatLine ? ` ${gmatLine}.` : ''}`,
-    }
-  return { title: 'oto.os', body: 'Quick check-in — how is the day tracking?' }
-}
-
-/** Days-to-GMAT from the tiny meta DB the app maintains (see lib/badge.ts). */
-async function gmatCountdownLine(): Promise<string> {
-  try {
-    const meta = await new Promise<Record<string, string> | undefined>((resolve, reject) => {
-      const open = indexedDB.open('oto-sw-meta', 1)
-      open.onupgradeneeded = () => {
-        if (!open.result.objectStoreNames.contains('kv')) open.result.createObjectStore('kv')
-      }
-      open.onerror = () => reject(open.error)
-      open.onsuccess = () => {
-        const db = open.result
-        const req = db.transaction('kv').objectStore('kv').get('meta')
-        req.onsuccess = () => {
-          db.close()
-          resolve(req.result as Record<string, string> | undefined)
-        }
-        req.onerror = () => {
-          db.close()
-          reject(req.error)
-        }
-      }
-    })
-    const target = meta?.gmatTargetDate
-    if (!target || !/^\d{4}-\d{2}-\d{2}$/.test(target)) return ''
-    const days = Math.round(
-      (Date.parse(`${target}T00:00:00`) - new Date().setHours(0, 0, 0, 0)) / 86_400_000,
-    )
-    return days > 0 ? `${days}d to GMAT` : ''
-  } catch {
-    return ''
-  }
 }
 
 self.addEventListener('push', (event) => {
@@ -102,20 +55,13 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     (async () => {
       const parsed = parsePayload(payload)
-      // A structured payload carries its own text (event reminders); anything
-      // else is a bare wake-up and the wording is chosen here.
-      let title: string
-      let body: string
-      let tag = 'oto-os-checkin'
-      if (parsed?.title) {
-        title = parsed.title
-        body = parsed.body ?? ''
-        // Per-event tag so two reminders stack instead of replacing each other.
-        if (parsed.tag) tag = parsed.tag
-      } else {
-        const gmatLine = await gmatCountdownLine()
-        ;({ title, body } = notificationForNow(parsed?.body, gmatLine))
-      }
+      // Only event reminders are sent, and they carry their own text. A push
+      // without one can only be an old cron still in flight — show it silently
+      // under a single reusable tag so such strays collapse into one line.
+      const title = parsed?.title || 'oto.os'
+      const body = parsed?.body ?? ''
+      // Per-event tag so two reminders stack instead of replacing each other.
+      const tag = parsed?.tag || 'oto-os-misc'
       await self.registration.showNotification(title, {
         body,
         icon: 'pwa-192.png',

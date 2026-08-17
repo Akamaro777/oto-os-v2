@@ -7,7 +7,7 @@ import { Ambient } from '@/components/Ambient'
 import { Toaster } from '@/components/ui/sonner'
 import { maybeAutoSyncT212 } from '@/store/portfolio'
 import { startSync } from '@/lib/sync'
-import { updateGmatBadge } from '@/lib/badge'
+import { clearIconBadge } from '@/lib/badge'
 
 // Code-split each screen so the initial load stays lean (recharts/motion only
 // download when Track/Mentor are first opened).
@@ -49,13 +49,8 @@ export default function App() {
         if (total != null) toast.success(`Portfolio synced: €${Math.round(total).toLocaleString('en-US')}`)
       })
     })
-    // Days-to-GMAT on the app icon, refreshed on every foreground.
-    updateGmatBadge()
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') updateGmatBadge()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
+    // Drop the icon badge an older build left behind (it read as unread mail).
+    clearIconBadge()
   }, [])
 
   return (
